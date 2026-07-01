@@ -14,7 +14,7 @@ use App\Http\Controllers\{
     EtudiantController,
     ChefServiceController,
 };
-
+ 
 /* ===== ACCUEIL / AUTH ===== */
 Route::get('/', function () {
     return view('welcome');

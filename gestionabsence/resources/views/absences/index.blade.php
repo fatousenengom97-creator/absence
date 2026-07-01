@@ -70,7 +70,6 @@
                 <tbody>
                 @forelse($absences as $abs)
                 @php
-                    // Attribution dynamique des couleurs Bootstrap natives
                     $badgeColor = match($abs->statut) {
                         'present'  => 'success',
                         'absent'   => 'danger',
@@ -78,7 +77,6 @@
                         'justifie' => 'info text-dark',
                         default    => 'secondary',
                     };
-                    // Sécurité d'ID
                     $uid = $abs->idPresence ?? $abs->id;
                 @endphp
                 <tr>
@@ -98,7 +96,7 @@
                         @if($abs->pointage_facial)
                             <span class="text-success" title="Validé par reconnaissance faciale"><i class="bi bi-check-circle-fill"></i></span>
                         @else
-                            <span class="text-muted" title="Pointage manuel ou absent"><i class="bi bi-x-circle"></i></span>
+                            <span class="text-muted" title="Pointage manuel"><i class="bi bi-x-circle"></i></span>
                         @endif
                     </td>
                     <td><small class="text-muted">{{ $abs->justification ?? '—' }}</small></td>

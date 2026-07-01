@@ -183,14 +183,24 @@
             <i class="bi bi-camera"></i> Reconnaissance faciale</a></li>
         @endif
 
-        {{-- ABSENCES --}}
-        @if(!auth()->user()->isEtudiant())
-        <li class="nav-section">Présences</li>
-        <li><a class="nav-link {{ request()->routeIs('absences.index') ? 'active' : '' }}" href="{{ route('absences.index') }}">
-            <i class="bi bi-clipboard-check"></i> Toutes les absences</a></li>
-        <li><a class="nav-link {{ request()->routeIs('absences.statistiques') ? 'active' : '' }}" href="{{ route('absences.statistiques') }}">
-            <i class="bi bi-pie-chart"></i> Statistiques</a></li>
-        @endif
+       {{-- ABSENCES --}}
+@if(!auth()->user()->isEtudiant())
+    <li class="nav-section">Présences</li>
+    <li>
+        <a class="nav-link {{ request()->routeIs('absences.index') ? 'active' : '' }}" href="{{ route('absences.index') }}">
+            <i class="bi bi-clipboard-check"></i> Toutes les absences
+        </a>
+    </li>
+    
+    {{-- On affiche les statistiques uniquement si ce n'est PAS un chef de service --}}
+    @if(!auth()->user()->isChefService())
+    <li>
+        <a class="nav-link {{ request()->routeIs('absences.statistiques') ? 'active' : '' }}" href="{{ route('absences.statistiques') }}">
+            <i class="bi bi-pie-chart"></i> Statistiques
+        </a>
+    </li>
+    @endif
+@endif
     </ul>
 </nav>
 
