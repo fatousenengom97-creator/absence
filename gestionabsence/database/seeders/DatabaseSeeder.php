@@ -3,226 +3,137 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use App\Models\{
-    User, Etudiant, Professeur, Administrateur, ChefService,
-    Departement, Filiere, Niveau, AnneeScolaire, Classe,
-    Salle, Matiere
-};
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Seed the application's database.
+     */
     public function run(): void
     {
-        // ===== ANNÉE SCOLAIRE =====
-        $annee = AnneeScolaire::create(['libelle' => '2025-2026', 'active' => true]);
+        // 1. Désactivation des contraintes de clé étrangère pour vider les tables proprement
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('classes')->truncate();
+        DB::table('filieres')->truncate();
+        DB::table('departements')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // ===== NIVEAUX (libellés complets) =====
-        $niveauxData = [
-            'L1' => 'Licence 1',
-            'L2' => 'Licence 2',
-            'L3' => 'Licence 3',
-            'M1' => 'Master 1',
-            'M2' => 'Master 2',
-        ];
-        $niveaux = [];
-        foreach ($niveauxData as $code => $libelle) {
-            $niveaux[$code] = Niveau::create(['nom' => $libelle]);
-        }
-
-        // ===== 3 DÉPARTEMENTS =====
-        $departements = [
-            'Informatique'        => Departement::create(['nomDep' => 'Informatique']),
-            'Télécommunications'  => Departement::create(['nomDep' => 'Télécommunications']),
-            'Sciences Appliquées' => Departement::create(['nomDep' => 'Sciences Appliquées']),
+        // 2. Insertion dans 'departements'
+        $depts = [
+            'TIC' => DB::table('departements')->insertGetId(['nomDep' => "Technologie de l'Information et de la Communication", 'created_at' => now(), 'updated_at' => now()]),
+            'MATH' => DB::table('departements')->insertGetId(['nomDep' => 'Mathématiques', 'created_at' => now(), 'updated_at' => now()]),
+            'CHIMIE' => DB::table('departements')->insertGetId(['nomDep' => 'Chimie', 'created_at' => now(), 'updated_at' => now()]),
+            'PHYSIQUE' => DB::table('departements')->insertGetId(['nomDep' => 'Physique', 'created_at' => now(), 'updated_at' => now()]),
         ];
 
-        // ===== 2 FILIÈRES PAR DÉPARTEMENT (noms complets) =====
+        // 3. Configuration des Filières officielles de l'UFR SATIC
         $filieresData = [
-            ['nom' => 'Génie Logiciel',                             'dep' => 'Informatique'],
-            ['nom' => 'Systèmes & Réseaux',                         'dep' => 'Informatique'],
-            ['nom' => 'Réseaux & Télécoms',                         'dep' => 'Télécommunications'],
-            ['nom' => 'Électronique & Télécoms',                   'dep' => 'Télécommunications'],
-            ['nom' => 'Mathématiques-Informatique',                 'dep' => 'Sciences Appliquées'],
-            ['nom' => 'Statistiques & Informatique Décisionnelle', 'dep' => 'Sciences Appliquées'],
+            // --- Département TIC ---
+            ['nom' => 'Développement et Administration des Applications (D2A)', 'code' => 'D2A', 'dept' => 'TIC'],
+            ['nom' => 'Système Réseaux et Télécommunication (SRT)', 'code' => 'SRT', 'dept' => 'TIC'],
+            ['nom' => 'Licence Professionnelle en Création MultiMedia (LPCM)', 'code' => 'LPCM', 'dept' => 'TIC'],
+            ['nom' => "Master Système d'Informations (SI)", 'code' => 'SI', 'dept' => 'TIC'],
+            ['nom' => 'Master Systèmes et Réseaux (SR)', 'code' => 'SR', 'dept' => 'TIC'],
+
+            // --- Tronc Commun et Autres Départements ---
+            ['nom' => 'Mathématiques Physique Chimie Informatique (MPCI)', 'code' => 'MPCI', 'dept' => 'MATH'],
+            ['nom' => 'Mathématiques-Physique-Informatique (MPI)', 'code' => 'MPI', 'dept' => 'MATH'],
+            ['nom' => 'Physique-Chimie (PC)', 'code' => 'PC', 'dept' => 'PHYSIQUE'],
+            ['nom' => 'Statistiques et Informatiques Décisionnelles (SID)', 'code' => 'SID', 'dept' => 'MATH'],
+            ['nom' => 'Mathématiques et Applications (MMA)', 'code' => 'MMA', 'dept' => 'MATH'],
+            ['nom' => 'Chimie', 'code' => 'CHIMIE', 'dept' => 'CHIMIE'],
+            ['nom' => 'Physique Médicale', 'code' => 'PM', 'dept' => 'PHYSIQUE'],
         ];
 
-        $filieres = [];
+        // 4. Insertion dans 'filieres'
+        $filiereIds = [];
         foreach ($filieresData as $f) {
-            $filieres[$f['nom']] = Filiere::create([
-                'nomFiliere' => $f['nom'],
-                'idDep'      => $departements[$f['dep']]->idDep,
+            $filiereIds[$f['code']] = DB::table('filieres')->insertGetId([
+                'nomFiliere'     => $f['nom'],
+                'idDep'          => $depts[$f['dept']],
+                'created_at'     => now(),
+                'updated_at'     => now()
             ]);
         }
 
-        // ===== 30 CLASSES avec NOMS COMPLETS =====
-        $classes = [];
-        foreach ($filieres as $nomFiliere => $filiere) {
-            foreach ($niveaux as $codeNiveau => $niveau) {
-                $nomClasse = $nomFiliere . ' ' . $niveau->nom;
-                $classes[$nomClasse] = Classe::create([
-                    'nom'       => $nomClasse,
-                    'idNiveau'  => $niveau->idNiveau,
-                    'idFiliere' => $filiere->idFiliere,
-                    'idAnnee'   => $annee->idAnnee,
-                    'effectif'  => 0,
-                ]);
-            }
-        }
+        // 5. Configuration précise de toutes les classes demandées
+        $classes = [
+            // --- FILIÈRE D2A ---
+            ['nom' => 'L1 D2A', 'filiere' => 'D2A', 'niveau' => 'Licence 1'],
+            ['nom' => 'L2 D2A', 'filiere' => 'D2A', 'niveau' => 'Licence 2'],
+            ['nom' => 'L3 D2A', 'filiere' => 'D2A', 'niveau' => 'Licence 3'],
+            ['nom' => "MASTER 1 S I (Systeme d'information)", 'filiere' => 'SI', 'niveau' => 'Master 1'],
+            ['nom' => "MASTER 2 S I (Systeme d'information)", 'filiere' => 'SI', 'niveau' => 'Master 2'],
 
-        $this->command->info('✅ ' . count($departements) . ' départements créés');
-        $this->command->info('✅ ' . count($filieres) . ' filières créées');
-        $this->command->info('✅ ' . count($classes) . ' classes créées avec noms complets');
+            // --- FILIÈRE SRT ---
+            ['nom' => 'L1 SRT', 'filiere' => 'SRT', 'niveau' => 'Licence 1'],
+            ['nom' => 'L2 SRT', 'filiere' => 'SRT', 'niveau' => 'Licence 2'],
+            ['nom' => 'L3 SRT', 'filiere' => 'SRT', 'niveau' => 'Licence 3'],
+            ['nom' => 'MASTER 1 S R (Systeme Reseaux)', 'filiere' => 'SR', 'niveau' => 'Master 1'],
+            ['nom' => 'MASTER 2 S R (Systeme Reseaux)', 'filiere' => 'SR', 'niveau' => 'Master 2'],
 
-        // ===== SALLES =====
-        $salles = [];
-        foreach ([
-            ['nom' => 'Salle A101', 'capacite' => 40],
-            ['nom' => 'Salle A102', 'capacite' => 40],
-            ['nom' => 'Salle B201', 'capacite' => 50],
-            ['nom' => 'Amphi 1',    'capacite' => 150],
-            ['nom' => 'Amphi 2',    'capacite' => 200],
-            ['nom' => 'Labo Info 1','capacite' => 30],
-            ['nom' => 'Labo Info 2','capacite' => 30],
-        ] as $s) {
-            $salles[] = Salle::create($s);
-        }
+            // --- CRÉATION MULTIMÉDIA ---
+            ['nom' => 'L1 LPCM', 'filiere' => 'LPCM', 'niveau' => 'Licence 1'],
+            ['nom' => 'L2 LPCM', 'filiere' => 'LPCM', 'niveau' => 'Licence 2'],
+            ['nom' => 'L3 LPCM', 'filiere' => 'LPCM', 'niveau' => 'Licence 3'],
 
-        // ===== MATIÈRES =====
-        $matieresData = [
-            ['nomMatiere' => 'Algorithmique & Structures de Données', 'codeUE' => 'INF101', 'coefficient' => 3],
-            ['nomMatiere' => 'Programmation Orientée Objet',          'codeUE' => 'INF102', 'coefficient' => 3],
-            ['nomMatiere' => 'Base de Données',                       'codeUE' => 'INF201', 'coefficient' => 2],
-            ['nomMatiere' => 'Réseaux Informatiques',                 'codeUE' => 'INF202', 'coefficient' => 2],
-            ['nomMatiere' => 'Intelligence Artificielle',             'codeUE' => 'INF301', 'coefficient' => 3],
-            ['nomMatiere' => 'Systèmes d\'exploitation',              'codeUE' => 'INF203', 'coefficient' => 2],
-            ['nomMatiere' => 'Mathématiques Discrètes',               'codeUE' => 'MAT101', 'coefficient' => 2],
-            ['nomMatiere' => 'Télécommunications Numériques',         'codeUE' => 'TEL101', 'coefficient' => 3],
-            ['nomMatiere' => 'Électronique Analogique',               'codeUE' => 'ELT101', 'coefficient' => 2],
-            ['nomMatiere' => 'Statistiques Appliquées',                'codeUE' => 'STA101', 'coefficient' => 2],
-        ];
-        $matieres = [];
-        foreach ($matieresData as $m) {
-            $matieres[] = Matiere::create($m);
-        }
+            // --- MPCI, MPI, PC, SID ---
+            ['nom' => 'L1 MPCI', 'filiere' => 'MPCI', 'niveau' => 'Licence 1'],
+            ['nom' => 'L2 MPI', 'filiere' => 'MPI', 'niveau' => 'Licence 2'],
+            ['nom' => 'L3 MPI', 'filiere' => 'MPI', 'niveau' => 'Licence 3'],
+            ['nom' => 'L2 PC', 'filiere' => 'PC', 'niveau' => 'Licence 2'],
+            ['nom' => 'L3 PC', 'filiere' => 'PC', 'niveau' => 'Licence 3'],
+            ['nom' => 'L2 SID', 'filiere' => 'SID', 'niveau' => 'Licence 2'],
+            ['nom' => 'L3 SID', 'filiere' => 'SID', 'niveau' => 'Licence 3'],
+            ['nom' => 'Master SID', 'filiere' => 'SID', 'niveau' => 'Master'],
 
-        // ===== ADMINISTRATEUR =====
-        $adminUser = User::create([
-            'nom'       => 'Diallo',
-            'prenom'    => 'Amadou',
-            'email'     => 'admin@satic.edu',
-            'telephone' => '771234567',
-            'password'  => Hash::make('password'),
-            'role'      => 'administrateur',
-        ]);
-        Administrateur::create(['user_id' => $adminUser->id, 'niveauAcces' => 'super']);
-
-        // ===== CHEF DE SERVICE =====
-        $chefUser = User::create([
-            'nom'       => 'Ndiaye',
-            'prenom'    => 'Fatou',
-            'email'     => 'chef@satic.edu',
-            'telephone' => '772345678',
-            'password'  => Hash::make('password'),
-            'role'      => 'chef_service',
-        ]);
-        ChefService::create(['user_id' => $chefUser->id, 'poste' => 'Chef Service Pédagogique']);
-
-        // ===== PROFESSEURS =====
-        $profsData = [
-            ['nom' => 'Mbaye', 'prenom' => 'Ibrahima', 'email' => 'ibrahima.mbaye@satic.edu', 'specialite' => 'Génie Logiciel'],
-            ['nom' => 'Sow',   'prenom' => 'Mariama',  'email' => 'mariama.sow@satic.edu',     'specialite' => 'Bases de Données'],
-            ['nom' => 'Diop',  'prenom' => 'Ousmane',  'email' => 'ousmane.diop@satic.edu',    'specialite' => 'Réseaux & Télécoms'],
-            ['nom' => 'Ba',    'prenom' => 'Aissatou', 'email' => 'aissatou.ba@satic.edu',     'specialite' => 'Intelligence Artificielle'],
-            ['nom' => 'Kane',  'prenom' => 'Modou',    'email' => 'modou.kane@satic.edu',      'specialite' => 'Électronique'],
-            ['nom' => 'Sy',    'prenom' => 'Aminata',  'email' => 'aminata.sy@satic.edu',      'specialite' => 'Statistiques'],
+            // --- AUTRES MASTERS ---
+            ['nom' => 'Master Chimie', 'filiere' => 'CHIMIE', 'niveau' => 'Master'],
+            ['nom' => 'Master Physique Médicale', 'filiere' => 'PM', 'niveau' => 'Master'],
+            ['nom' => 'Master Mathématiques et Applications (MMA)', 'filiere' => 'MMA', 'niveau' => 'Master'],
         ];
 
-        $professeurs = [];
-        foreach ($profsData as $i => $p) {
-            $user = User::create([
-                'nom'      => $p['nom'],
-                'prenom'   => $p['prenom'],
-                'email'    => $p['email'],
-                'password' => Hash::make('password'),
-                'role'     => 'professeur',
+        // 6. Insertion dans 'classes' (Correction : 'nomClasse' supprimé)
+        foreach ($classes as $c) {
+            $idNiveauMap = [
+                'Licence 1' => 1,
+                'Licence 2' => 2,
+                'Licence 3' => 3,
+                'Master 1'  => 4,
+                'Master 2'  => 5,
+                'Master'    => 6,
+            ];
+
+            $idNiveau = $idNiveauMap[$c['niveau']] ?? 1;
+
+            DB::table('classes')->insert([
+                'nom'        => $c['nom'], 
+                'idFiliere'  => $filiereIds[$c['filiere']],
+                'idNiveau'   => $idNiveau,
+                'idAnnee'    => 1, 
+                'effectif'   => 0,
+                'created_at' => now(),
+                'updated_at' => now()
             ]);
-            $prof = Professeur::create([
-                'user_id'    => $user->id,
-                'matricule'  => 'PROF-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT),
-                'specialite' => $p['specialite'],
-            ]);
-            $prof->matieres()->attach([$matieres[$i % count($matieres)]->idMatiere]);
-            $professeurs[] = $prof;
         }
-
-        // ===== ÉTUDIANTS — répartis dans CHAQUE classe =====
-        $prenomsM = ['Cheikh', 'Moussa', 'Alassane', 'Mamadou', 'Pape', 'Modou', 'Ibrahima', 'Ousmane', 'Saliou', 'Abdou'];
-        $prenomsF = ['Rokhaya', 'Ndèye', 'Bineta', 'Sophie', 'Aminata', 'Awa', 'Khady', 'Fatima', 'Coumba', 'Astou'];
-        $noms     = ['Fall', 'Diallo', 'Seck', 'Gueye', 'Cissé', 'Sarr', 'Toure', 'Faye', 'Diouf', 'Camara', 'Ndiaye', 'Sow'];
-
-        $compteurGlobal = 1;
-        $totalEtudiants = 0;
-
-        foreach ($classes as $nomClasse => $classe) {
-            $nbEtudiants = rand(8, 15);
-
-            for ($i = 0; $i < $nbEtudiants; $i++) {
-                $estHomme = rand(0, 1) === 1;
-                $prenom   = $estHomme ? $prenomsM[array_rand($prenomsM)] : $prenomsF[array_rand($prenomsF)];
-                $nom      = $noms[array_rand($noms)];
-                $emailSlug = strtolower($prenom . '.' . $nom . $compteurGlobal);
-
-                $user = User::create([
-                    'nom'      => $nom,
-                    'prenom'   => $prenom,
-                    'email'    => $emailSlug . '@etud.satic.edu',
-                    'password' => Hash::make('password'),
-                    'role'     => 'etudiant',
-                ]);
-
-                Etudiant::create([
-                    'user_id'       => $user->id,
-                    'codePar'       => 'ETU-2025-' . str_pad($compteurGlobal, 5, '0', STR_PAD_LEFT),
-                    'idClasse'      => $classe->idClasse,
-                    'dateNaissance' => now()->subYears(rand(18, 26))->subDays(rand(0, 365)),
-                    'lieuNaissance' => collect(['Dakar', 'Thiès', 'Saint-Louis', 'Ziguinchor', 'Kaolack', 'Touba'])->random(),
-                ]);
-
-                $compteurGlobal++;
-                $totalEtudiants++;
-            }
-
-            $classe->update(['effectif' => $nbEtudiants]);
-        }
-
-        $this->command->info("✅ {$totalEtudiants} étudiants créés et répartis dans " . count($classes) . ' classes');
-
-        // Étudiant de démo
-        $premiereClasse = $classes['Génie Logiciel Licence 1'];
-        $demoUser = User::create([
-            'nom'      => 'Demo',
-            'prenom'   => 'Etudiant',
-            'email'    => 'etudiant@satic.edu',
-            'password' => Hash::make('password'),
-            'role'     => 'etudiant',
+        // ==========================================
+        // CRÉATION DU COMPTE ADMINISTRATEUR PAR DÉFAUT
+        // ==========================================
+        
+        $userId = DB::table('users')->insertGetId([
+            'prenom'     => 'Amadou',           // Aligné avec tes logs récents
+            'nom'        => 'Diallo',           // Aligné avec tes logs récents
+            'email'      => 'admin@satic.edu',
+            'password'   => bcrypt('password'), // Le mot de passe sera 'password'
+            'role'       => 'administrateur',   // Ton rôle exact dans l'application
+            'is_active'  => true,               // Sécurité d'activation vue dans ton diagnostic
+            'created_at' => now(),
+            'updated_at' => now()
         ]);
-        Etudiant::create([
-            'user_id'  => $demoUser->id,
-            'codePar'  => 'ETU-DEMO-001',
-            'idClasse' => $premiereClasse->idClasse,
-        ]);
-        $premiereClasse->increment('effectif');
+        
 
-        $this->command->info('✅ Seed terminé avec succès !');
-        $this->command->table(
-            ['Rôle', 'Email', 'Mot de passe'],
-            [
-                ['Administrateur',   'admin@satic.edu',          'password'],
-                ['Chef de service',  'chef@satic.edu',           'password'],
-                ['Professeur',       'ibrahima.mbaye@satic.edu', 'password'],
-                ['Étudiant (démo)',  'etudiant@satic.edu',       'password'],
-            ]
-        );
+        // 7. Appel du Seeder des matières officielles
+        $this->call(MatiereSeeder::class);
     }
 }

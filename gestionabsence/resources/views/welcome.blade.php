@@ -141,9 +141,9 @@
         <span class="badge-pill mb-3 d-inline-block">La gestion des absences de l' UFR SATIC</span>
         <h1 class="mb-3">Suivez les présences en un clin d'œil</h1>
         <p class="lead mx-auto">
-            Tontin... non — <strong>SATIC Présence</strong> vous permet de gérer étudiants, cours et
-            absences grâce à la reconnaissance faciale. Une solution moderne, sécurisée et intuitive
-            pour l'UFR SATIC.
+             <strong>UFR SATIC-UADB</strong> modernise le suivi pedagogique avec une solution 
+    securise et automisee de gestion des absences,s'appuyant sur l'intelligence Artificielle 
+    pour la reconnaissance faciale .Optimisez les presences et l'excellence academique
         </p>
         <div class="d-flex gap-3 justify-content-center flex-wrap mt-4">
             <a href="{{ route('login') }}" class="btn-hero-primary">

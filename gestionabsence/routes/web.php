@@ -4,6 +4,8 @@ use App\Http\Controllers\EtudiantsParFiliereController;
 use App\Http\Controllers\InscriptionController;
 use App\Http\Controllers\DepartementController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ClasseController;
+use App\Http\Controllers\Admin\MatiereController;
 use App\Http\Controllers\{
     AuthController,
     AdminController,
@@ -70,12 +72,12 @@ Route::middleware(['auth', 'role:administrateur'])
 
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
-    // Étudiants par filière (parcours indépendant) — ordre important : index, puis classes, puis etudiants
+    // Étudiants par filière
     Route::get('/etudiants-filiere', [EtudiantsParFiliereController::class, 'index'])->name('etudiants-filiere.index');
     Route::get('/etudiants-filiere/{filiere}/classes', [EtudiantsParFiliereController::class, 'showClasses'])->name('etudiants-filiere.classes');
     Route::get('/etudiants-filiere/{filiere}/classes/{classe}/etudiants', [EtudiantsParFiliereController::class, 'showEtudiants'])->name('etudiants-filiere.etudiants');
 
-    // Utilisateurs — liste générale + 4 listes séparées par rôle
+    // Utilisateurs
     Route::get('/users', [AdminController::class, 'indexUsers'])->name('users.index');
     Route::get('/users/etudiants', [AdminController::class, 'indexEtudiants'])->name('users.etudiants');
     Route::get('/users/professeurs', [AdminController::class, 'indexProfesseurs'])->name('users.professeurs');
@@ -88,20 +90,36 @@ Route::middleware(['auth', 'role:administrateur'])
     Route::delete('/users/{user}', [AdminController::class, 'destroyUser'])->name('users.destroy');
 
     // Classes
-    Route::get('/classes', [AdminController::class, 'indexClasses'])->name('classes.index');
+    Route::get('/classes', [ClasseController::class, 'index'])->name('classes.index');
     Route::get('/classes/create', [AdminController::class, 'createClasse'])->name('classes.create');
     Route::post('/classes', [AdminController::class, 'storeClasse'])->name('classes.store');
     Route::delete('/classes/{classe}', [AdminController::class, 'destroyClasse'])->name('classes.destroy');
 
-    // Matières
-    Route::get('/matieres', [AdminController::class, 'indexMatieres'])->name('matieres.index');
-    Route::post('/matieres', [AdminController::class, 'storeMatiere'])->name('matieres.store');
+    // Gestion exclusive des Matières (Correctement préfixées en admin.matieres.*)
+    Route::get('/matieres', [MatiereController::class, 'index'])->name('matieres.index');
+    Route::post('/matieres', [MatiereController::class, 'store'])->name('matieres.store');
+    Route::delete('/matieres/{id}', [MatiereController::class, 'destroy'])->name('matieres.destroy');
+
+    // INTÉGRATION SÉCURISÉE : Chargement direct de la vue dans l'espace Admin (Correction 403)
+    Route::get('/cours', function () {
+        return view('admin.cours.index');
+    })->name('cours.index');
+    
+    // NOUVEAU : Route Statistiques dédiée à l'Admin
+    Route::get('/statistiques', function () {
+        return view('admin.statistiques.index'); // Ajuste le chemin de ta vue si nécessaire
+    })->name('statistiques.index');
+
+    // NOUVEAU : Route Reconnaissance Faciale dédiée à l'Admin
+    Route::get('/reconnaissance-faciale', function () {
+        return view('admin.biometrie.index'); // Ajuste le chemin de ta vue si nécessaire
+    })->name('biometrie.index');
 
     // Salles
     Route::get('/salles', [AdminController::class, 'indexSalles'])->name('salles.index');
     Route::post('/salles', [AdminController::class, 'storeSalle'])->name('salles.store');
 
-    // Départements — Navigation en 4 pages
+    // Départements
     Route::get('/departements', [DepartementController::class, 'index'])->name('departements.index');
     Route::post('/departements', [DepartementController::class, 'store'])->name('departements.store');
     Route::get('/departements/{departement}/filieres', [DepartementController::class, 'showFilieres'])->name('departements.filieres');
@@ -111,7 +129,7 @@ Route::middleware(['auth', 'role:administrateur'])
     Route::post('/departements/{departement}/filieres/{filiere}/classes/{classe}/ues', [DepartementController::class, 'storeUE'])->name('departements.ues.store');
     Route::post('/departements/{departement}/filieres/{filiere}/classes/{classe}/ues/{ue}/matieres', [DepartementController::class, 'storeMatiereUE'])->name('departements.ues.matieres.store');
 
-    // API cascade (département -> filière -> classe) pour formulaires
+    // API cascade (département -> filière -> classe)
     Route::prefix('api')->group(function () {
         Route::get('/departements/{departement}/filieres', [InscriptionController::class, 'filieresParDepartement']);
         Route::get('/filieres/{filiere}/classes', [InscriptionController::class, 'classesParFiliere']);
@@ -143,13 +161,8 @@ Route::middleware(['auth', 'role:chef_service'])
     Route::get('/alertes', [ChefServiceController::class, 'alertes'])->name('alertes');
 });
 
-/* ===== COURS (admin + professeur séparés) ===== */
-Route::middleware(['auth', 'role:administrateur'])
-    ->group(function () {
-    Route::resource('cours', CoursController::class);
-});
-Route::middleware(['auth', 'role:professeur'])
-    ->group(function () {
+/* ===== ESPACE DES COURS (PROFESSEUR UNIQUEMENT) ===== */
+Route::middleware(['auth', 'role:professeur'])->group(function () {
     Route::get('cours', [CoursController::class, 'index'])->name('cours.index');
     Route::get('cours/create', [CoursController::class, 'create'])->name('cours.create');
     Route::post('cours', [CoursController::class, 'store'])->name('cours.store');

@@ -6,31 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Matiere extends Model
 {
+    protected $table = 'matieres';
     protected $primaryKey = 'idMatiere';
+    protected $fillable = ['codeMatiere', 'nomMatiere', 'cm', 'td', 'tp', 'coefficient', 'idUE'];
 
-    protected $fillable = [
-        'nomMatiere',
-        'codeUE',
-        'attribut_coefficient'
-    ];
-
-    public function professeurs()
+    // Une matière (EC) appartient à une Unité d'Enseignement
+    public function ue()
     {
-        return $this->belongsToMany(
-            Professeur::class,
-            'professeur_matiere',
-            'idMatiere',
-            'professeur_id'
-        );
+        return $this->belongsTo(UE::class, 'idUE', 'idUE');
     }
-
-    public function cours()
-    {
-        return $this->hasMany(Cours::class, 'idMatiere', 'idMatiere');
-    }
-    public function index()
-{
-    $matieres = Matiere::all();
-    return view('matieres.index', compact('matieres'));
-}
 }

@@ -8,13 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('matieres', function (Blueprint $table) {
-            $table->id('idMatiere');
-            $table->string('nomMatiere');
-            $table->string('codeUE')->nullable();
-            $table->float('coefficient')->default(1);
-            $table->timestamps();
-        });
+       Schema::create('matieres', function (Blueprint $table) {
+    $table->id('idMatiere');
+    $table->string('codeMatiere')->unique();
+    $table->string('nomMatiere');
+    $table->integer('cm')->default(0);
+    $table->integer('td')->default(0);
+    $table->integer('tp')->default(0);
+    $table->integer('coefficient')->default(1);
+    $table->unsignedBigInteger('idUE');
+    $table->foreign('idUE')->references('idUE')->on('ues')->onDelete('cascade');
+    $table->timestamps();
+});
 
         Schema::create('professeur_matiere', function (Blueprint $table) {
             $table->unsignedBigInteger('professeur_id');
