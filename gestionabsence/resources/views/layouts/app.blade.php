@@ -6,9 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'SATIC - Gestion des Absences')</title>
 
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
@@ -83,6 +81,7 @@
         .card-header { background: #fff; border-bottom: 1px solid #f1f5f9; border-radius: 12px 12px 0 0 !important; font-weight: 600; }
 
         /* Stat cards */
+        .card { border: none; border-radius: 12px; box-shadow: 0 1px 8px rgba(0,0,0,.06); }
         .stat-card { border-radius: 12px; padding: 1.25rem; color: #fff; }
         .stat-card .stat-icon { font-size: 2.5rem; opacity: .3; }
         .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
@@ -105,7 +104,6 @@
 <body>
 
 @auth
-<!-- ===== SIDEBAR ===== -->
 <nav class="sidebar">
     <div class="brand">
         <h5><i class="bi bi-mortarboard-fill me-2"></i>UFR SATIC</h5>
@@ -128,32 +126,31 @@
         </li>
 
         {{-- ADMIN --}}
-@if(auth()->user()->isAdmin())
-<li class="nav-section">Administration</li>
-<li><a class="nav-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
-    <i class="bi bi-people"></i> Utilisateurs</a></li>
-<li><a class="nav-link {{ request()->routeIs('admin.classes*') ? 'active' : '' }}" href="{{ route('admin.classes.index') }}">
-    <i class="bi bi-building"></i> Classes</a></li>
-<li><a class="nav-link {{ request()->routeIs('admin.matieres*') ? 'active' : '' }}" href="{{ route('admin.matieres.index') }}">
-    <i class="bi bi-journal-text"></i> Matières</a></li>
-<li><a class="nav-link {{ request()->routeIs('admin.salles*') ? 'active' : '' }}" href="{{ route('admin.salles.index') }}">
-    <i class="bi bi-grid"></i> Salles</a></li>
+        @if(auth()->user()->role === 'administrateur')
+        <li class="nav-section">Administration</li>
+        <li><a class="nav-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
+            <i class="bi bi-people"></i> Utilisateurs</a></li>
+        <li><a class="nav-link {{ request()->routeIs('admin.classes*') ? 'active' : '' }}" href="{{ route('admin.classes.index') }}">
+            <i class="bi bi-building"></i> Classes</a></li>
+        <li><a class="nav-link {{ request()->routeIs('admin.matieres*') ? 'active' : '' }}" href="{{ route('admin.matieres.index') }}">
+            <i class="bi bi-journal-text"></i> Matières</a></li>
+        <li><a class="nav-link {{ request()->routeIs('admin.salles*') ? 'active' : '' }}" href="{{ route('admin.salles.index') }}">
+            <i class="bi bi-grid"></i> Salles</a></li>
 
-{{-- AJOUT DE LA GESTION DES COURS POUR L'ADMIN --}}
-<li><a class="nav-link {{ request()->routeIs('admin.cours*') ? 'active' : '' }}" href="{{ route('admin.cours.index') }}">
-    <i class="bi bi-calendar-event"></i> Cours</a></li>
-@endif
+        {{-- GESTION DES COURS POUR L'ADMIN --}}
+        <li><a class="nav-link {{ request()->routeIs('admin.cours*') ? 'active' : '' }}" href="{{ route('admin.cours.index') }}">
+            <i class="bi bi-calendar-event"></i> Cours</a></li>
+        @endif
 
-        {{-- COURS --}}
-{{-- On laisse uniquement le 'professeur' ici pour éviter le doublon chez l'admin --}}
-@if(auth()->user()->role === 'professeur')
-<li class="nav-section">Cours</li>
-<li><a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}" href="{{ route('cours.index') }}">
-    <i class="bi bi-calendar3"></i> Cours</a></li>
-@endif
+        {{-- COURS PROFESSEUR --}}
+        @if(auth()->user()->role === 'professeur')
+        <li class="nav-section">Cours</li>
+        <li><a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}" href="{{ route('cours.index') }}">
+            <i class="bi bi-calendar3"></i> Cours</a></li>
+        @endif
 
         {{-- ETUDIANT --}}
-        @if(auth()->user()->isEtudiant())
+        @if(auth()->user()->role === 'etudiant')
         <li class="nav-section">Mon espace</li>
         <li><a class="nav-link {{ request()->routeIs('etudiant.cours') ? 'active' : '' }}" href="{{ route('etudiant.cours') }}">
             <i class="bi bi-calendar3"></i> Mes cours</a></li>
@@ -161,19 +158,17 @@
             <i class="bi bi-clipboard-check"></i> Mes absences</a></li>
         @endif
 
-        {{-- PROF --}}
-        @if(auth()->user()->isProfesseur())
+        {{-- PROFESSEUR DETAILS --}}
+        @if(auth()->user()->role === 'professeur')
         <li class="nav-section">Enseignement</li>
-        <li><a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}" href="{{ route('cours.index') }}">
-            <i class="bi bi-calendar3"></i> Mes cours</a></li>
         <li><a class="nav-link {{ request()->routeIs('professeur.etudiants') ? 'active' : '' }}" href="{{ route('professeur.etudiants') }}">
             <i class="bi bi-people"></i> Mes étudiants</a></li>
         <li><a class="nav-link {{ request()->routeIs('professeur.absences') ? 'active' : '' }}" href="{{ route('professeur.absences') }}">
             <i class="bi bi-clipboard-data"></i> Absences</a></li>
         @endif
 
-        {{-- CHEF --}}
-        @if(auth()->user()->isChefService())
+        {{-- CHEF DE SERVICE --}}
+        @if(auth()->user()->role === 'chef_service')
         <li class="nav-section">Rapports</li>
         <li><a class="nav-link {{ request()->routeIs('chef.rapport') ? 'active' : '' }}" href="{{ route('chef.rapport') }}">
             <i class="bi bi-bar-chart"></i> Rapport global</a></li>
@@ -181,49 +176,44 @@
             <i class="bi bi-bell"></i> Alertes</a></li>
         @endif
 
-       {{-- ===== SECTION BIOMÉTRIE ===== --}}
-@if(auth()->user()->isAdmin())
-    {{-- Version exclusive pour l'Administrateur --}}
-    <li class="nav-section">Biométrie</li>
-    <li><a class="nav-link {{ request()->routeIs('admin.biometrie*') ? 'active' : '' }}" href="{{ route('admin.biometrie.index') }}">
-        <i class="bi bi-camera"></i> Reconnaissance faciale</a></li>
-@elseif(auth()->user()->role === 'professeur')
-    {{-- Version pour le Professeur --}}
-    <li class="nav-section">Biométrie</li>
-    <li><a class="nav-link {{ request()->routeIs('biometrie.index') ? 'active' : '' }}" href="{{ route('biometrie.index') }}">
-        <i class="bi bi-camera"></i> Reconnaissance faciale</a></li>
-@endif
+        {{-- ===== SECTION BIOMÉTRIE ===== --}}
+        @if(auth()->user()->role === 'administrateur')
+            <li class="nav-section">Biométrie</li>
+            <li><a class="nav-link {{ request()->routeIs('admin.biometrie*') ? 'active' : '' }}" href="{{ route('admin.biometrie.index') }}">
+                <i class="bi bi-camera"></i> Reconnaissance faciale</a></li>
+        @elseif(auth()->user()->role === 'professeur')
+            <li class="nav-section">Biométrie</li>
+            <li><a class="nav-link {{ request()->routeIs('biometrie.index') ? 'active' : '' }}" href="{{ route('biometrie.index') }}">
+                <i class="bi bi-camera"></i> Reconnaissance faciale</a></li>
+        @endif
 
-       {{-- ABSENCES --}}
-@if(!auth()->user()->isEtudiant())
-    <li class="nav-section">Présences</li>
-    <li>
-        <a class="nav-link {{ request()->routeIs('absences.index') ? 'active' : '' }}" href="{{ route('absences.index') }}">
-            <i class="bi bi-clipboard-check"></i> Toutes les absences
-        </a>
-    </li>
-    
-   {{-- ===== SECTION PRÉSENCES / STATISTIQUES ===== --}}
-@if(auth()->user()->isAdmin())
-    {{-- L'admin voit ses statistiques dédiées avec le préfixe admin/ --}}
-    <li>
-        <a class="nav-link {{ request()->routeIs('admin.statistiques*') ? 'active' : '' }}" href="{{ route('admin.statistiques.index') }}">
-            <i class="bi bi-pie-chart"></i> Statistiques
-        </a>
-    </li>
-@elseif(!auth()->user()->isChefService())
-    {{-- Les autres rôles (hors chef de service et admin) voient la route globale --}}
-    <li>
-        <a class="nav-link {{ request()->routeIs('absences.statistiques') ? 'active' : '' }}" href="{{ route('absences.statistiques') }}">
-            <i class="bi bi-pie-chart"></i> Statistiques
-        </a>
-    </li>
-@endif
-@endif
+        {{-- ABSENCES GLOBALES --}}
+        @if(auth()->user()->role !== 'etudiant')
+            <li class="nav-section">Présences</li>
+            <li>
+                <a class="nav-link {{ request()->routeIs('absences.index') ? 'active' : '' }}" href="{{ route('absences.index') }}">
+                    <i class="bi bi-clipboard-check"></i> Toutes les absences
+                </a>
+            </li>
+            
+            {{-- ===== SECTION STATISTIQUES ===== --}}
+            @if(auth()->user()->role === 'administrateur')
+                <li>
+                    <a class="nav-link {{ request()->routeIs('admin.statistiques*') ? 'active' : '' }}" href="{{ route('admin.statistiques.index') }}">
+                        <i class="bi bi-pie-chart"></i> Statistiques
+                    </a>
+                </li>
+            @elseif(auth()->user()->role !== 'chef_service')
+                <li>
+                    <a class="nav-link {{ request()->routeIs('absences.statistiques') ? 'active' : '' }}" href="{{ route('absences.statistiques') }}">
+                        <i class="bi bi-pie-chart"></i> Statistiques
+                    </a>
+                </li>
+            @endif
+        @endif
     </ul>
 </nav>
 
-<!-- ===== MAIN ===== -->
 <div class="main-content">
     <div class="topbar">
         <div class="d-flex align-items-center gap-2">

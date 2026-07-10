@@ -10,7 +10,7 @@ class Etudiant extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'codePar', 'dateNaissance', 'lieuNaissance',
+        'user_id', 'codePar', 'dateNaissance', 'lieuNaissance', 'idClasse',
     ];
 
     protected $casts = [

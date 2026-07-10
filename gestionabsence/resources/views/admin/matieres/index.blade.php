@@ -5,47 +5,47 @@
     <div class="d-flex justify-content-between align-items-center my-4 pt-2">
         <div>
             <h1 class="h3 mb-0 text-gray-800 fw-bold">Gestion des Matières</h1>
-            <p class="text-muted small d-none d-md-block">Sélectionnez les critères pour afficher et gérer vos matières sans chevauchement.</p>
+            <p class="text-muted small d-none d-md-block">Sélectionnez les critères pour afficher et gérez vos matières sans chevauchement.</p>
         </div>
         <button class="btn btn-primary shadow-sm" onclick="openAddModal()">
             <i class="bi bi-plus-circle me-2"></i> Ajouter une matière
         </button>
     </div>
 
-    <div class="card shadow mb-4 border-0 bg-light">
-        <div class="card-body p-3">
-            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3">
-                <div class="col">
-                    <label class="form-label small fw-bold text-secondary mb-1">1. Département</label>
-                    <select id="filter-dept" class="form-select form-select-sm shadow-sm" onchange="updateFilieres()">
-                        <option value="TIC">Département TIC</option>
-                        <option value="MPC">Département Maths, Physique, Chimie</option>
-                    </select>
-                </div>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3 mb-4">
+        <div class="col">
+            <label class="form-label small fw-bold text-secondary mb-1">1. Département</label>
+            <select id="filter-dept" class="form-select form-select-sm shadow-sm" onchange="updateFilieres()">
+                <option value="TIC">Département TIC</option>
+                <option value="MPC">Département Maths, Physique, Chimie</option>
+            </select>
+        </div>
 
-                <div class="col">
-                    <label class="form-label small fw-bold text-secondary mb-1">2. Filière / Branche</label>
-                    <select id="filter-filiere" class="form-select form-select-sm shadow-sm" onchange="filterTable()">
-                        </select>
-                </div>
+        <div class="col">
+            <label class="form-label small fw-bold text-secondary mb-1">2. Filière / Branche</label>
+            <select id="filter-filiere" class="form-select form-select-sm shadow-sm" onchange="filterTable()">
+                @foreach($filieres as $filiere)
+                    @php $codeF = $filiere->codeFiliere ?? $filiere->code ?? $filiere->id; @endphp
+                    <option value="{{ $codeF }}" data-dept="{{ $filiere->departement }}">
+                        {{ $filiere->nomFiliere ?? $filiere->nom }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
 
-                <div class="col">
-                    <label class="form-label small fw-bold text-secondary mb-1">3. Niveau</label>
-                    <select id="filter-niveau" class="form-select form-select-sm shadow-sm" onchange="updateFiliereBranches()">
-                        <option value="L1">Licence 1 (L1)</option>
-                        <option value="L2">Licence 2 (L2)</option>
-                        <option value="L3">Licence 3 (L3)</option>
-                    </select>
-                </div>
+        <div class="col">
+            <label class="form-label small fw-bold text-secondary mb-1">3. Niveau</label>
+            <select id="filter-niveau" class="form-select form-select-sm shadow-sm" onchange="updateFiliereBranches()">
+                @foreach($niveaux as $niveau)
+                    <option value="{{ $niveau->idNiveau }}">{{ $niveau->nom }}</option>
+                @endforeach
+            </select>
+        </div>
 
-                <div class="col">
-                    <label class="form-label small fw-bold text-secondary mb-1">4. Semestre</label>
-                    <select id="filter-semestre" class="form-select form-select-sm shadow-sm" onchange="filterTable()">
-                        <option value="S1">Semestre 1 (S1)</option>
-                        <option value="S2">Semestre 2 (S2)</option>
-                    </select>
-                </div>
-            </div>
+        <div class="col">
+            <label class="form-label small fw-bold text-secondary mb-1">4. Semestre</label>
+            <select id="filter-semestre" class="form-select form-select-sm shadow-sm" onchange="filterTable()">
+                </select>
         </div>
     </div>
 
@@ -82,19 +82,21 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="matiereForm" onsubmit="saveMatiere(event)">
+                @csrf
                 <div class="modal-body">
-                    <input type="hidden" id="matiere-id">
+                    <input type="hidden" id="matiere-id" name="id">
+                    
                     <div class="mb-3">
                         <label class="form-label fw-bold small">Code de la matière</label>
-                        <input type="text" id="form-code" class="form-control" placeholder="Ex: WEB2411" required>
+                        <input type="text" id="form-code" name="code" class="form-control" placeholder="Ex: WEB2411" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold small">Nom de la matière</label>
-                        <input type="text" id="form-nom" class="form-control" placeholder="Ex: Programmation PHP" required>
+                        <input type="text" id="form-nom" name="nom" class="form-control" placeholder="Ex: Programmation PHP" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold small">Coefficient</label>
-                        <input type="number" id="form-coef" class="form-control" value="1" min="1" required>
+                        <input type="number" id="form-coef" name="coefficient" class="form-control" value="1" min="1" required>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -107,55 +109,53 @@
 </div>
 
 <script>
-    // Liste globale simulée contenant la logique spécifique de l'UFR
-    let matieresSimulees = [
-        { id: 1, dept: 'TIC', filiere: 'D2A', niveau: 'L1', semestre: 'S1', code: 'WEB1111', nom: 'Architecture des ordinateurs', coef: 1 },
-        { id: 2, dept: 'TIC', filiere: 'D2A', niveau: 'L1', semestre: 'S1', code: 'WEB1112', nom: 'Système d\'exploitation', coef: 1 },
-        { id: 3, dept: 'TIC', filiere: 'D2A', niveau: 'L1', semestre: 'S2', code: 'WEB1211', nom: 'HTML et CSS', coef: 2 },
-        { id: 4, dept: 'TIC', filiere: 'SRT', niveau: 'L1', semestre: 'S1', code: 'SRT1110', nom: 'Introduction aux Réseaux', coef: 2 },
-        
-        // Département MPC - L1 Tronc commun
-        { id: 5, dept: 'MPC', filiere: 'MPCI', niveau: 'L1', semestre: 'S1', code: 'MTH1110', nom: 'Algèbre 1', coef: 3 },
-        
-        // Département MPC - L2 Branches de spécialisation
-        { id: 6, dept: 'MPC', filiere: 'MPI', niveau: 'L2', semestre: 'S3', code: 'INF2310', nom: 'Structure de Données (MPI)', coef: 2 },
-        { id: 7, dept: 'MPC', filiere: 'PC', niveau: 'L2', semestre: 'S3', code: 'CHM2310', nom: 'Chimie Organique (PC)', coef: 3 },
-        { id: 8, dept: 'MPC', filiere: 'SID', niveau: 'L2', semestre: 'S3', code: 'STA2310', nom: 'Probabilités et Statistiques (SID)', coef: 3 }
-    ];
-
     let bootstrapModal;
 
     document.addEventListener("DOMContentLoaded", function() {
         bootstrapModal = new bootstrap.Modal(document.getElementById('matiereModal'));
-        updateFilieres(); // Initialisation des filières au premier chargement
+        updateFilieres(); 
     });
 
-    // Ajustement dynamique des filières et des semestres selon le niveau
-    function updateFilieres() {
+    async function updateFilieres() {
         const dept = document.getElementById('filter-dept').value;
-        const niveau = document.getElementById('filter-niveau').value;
+        const niveau = document.getElementById('filter-niveau').value; 
         const filiereSelect = document.getElementById('filter-filiere');
         const semestreSelect = document.getElementById('filter-semestre');
 
-        // 1. Changement des choix de semestres selon le niveau
-        if (niveau === 'L1') {
+        // Alignement des semestres
+        if (niveau === '1') {
             semestreSelect.innerHTML = '<option value="S1">Semestre 1 (S1)</option><option value="S2">Semestre 2 (S2)</option>';
-        } else if (niveau === 'L2') {
+        } else if (niveau === '2') {
             semestreSelect.innerHTML = '<option value="S3">Semestre 3 (S3)</option><option value="S4">Semestre 4 (S4)</option>';
-        } else {
+        } else if (niveau === '3') {
             semestreSelect.innerHTML = '<option value="S5">Semestre 5 (S5)</option><option value="S6">Semestre 6 (S6)</option>';
+        } else if (niveau === '4') {
+            semestreSelect.innerHTML = '<option value="S7">Semestre 7 (S7)</option><option value="S8">Semestre 8 (S8)</option>';
+        } else if (niveau === '5') {
+            semestreSelect.innerHTML = '<option value="S9">Semestre 9 (S9)</option><option value="S10">Semestre 10 (S10)</option>';
+        } else {
+            semestreSelect.innerHTML = '<option value="Thèse">Travaux de Thèse</option>';
         }
 
-        // 2. Gestion de la logique des filières (Spécialisation MPC en L2/L3)
-        if (dept === 'TIC') {
-            filiereSelect.innerHTML = '<option value="D2A">D2A</option><option value="SRT">SRT</option>';
-        } else if (dept === 'MPC') {
-            if (niveau === 'L1') {
-                filiereSelect.innerHTML = '<option value="MPCI">MPCI (Tronc Commun)</option>';
+        try {
+            const response = await fetch(`/admin/filieres/recuperer?dept=${dept}&niveau=${niveau}`);
+            const filieresBdd = await response.json();
+            
+            filiereSelect.innerHTML = '';
+            
+            if(filieresBdd.length === 0) {
+                filiereSelect.innerHTML = '<option value="">Aucune filière trouvée</option>';
             } else {
-                filiereSelect.innerHTML = '<option value="MPI">MPI</option><option value="PC">PC</option><option value="SID">SID</option>';
+                filieresBdd.forEach(f => {
+                    const codeFiliere = f.codeFiliere ?? f.code ?? f.id;
+                    const nomFiliere = f.nomFiliere ?? f.nom;
+                    filiereSelect.innerHTML += `<option value="${codeFiliere}">${nomFiliere}</option>`;
+                });
             }
+        } catch (error) {
+            console.error("Impossible de charger les filières de la BDD", error);
         }
+
         filterTable();
     }
 
@@ -163,100 +163,144 @@
         updateFilieres();
     }
 
-    // Filtrage dynamique du tableau
-    function filterTable() {
+    async function filterTable() {
         const dept = document.getElementById('filter-dept').value;
         const filiere = document.getElementById('filter-filiere').value;
         const niveau = document.getElementById('filter-niveau').value;
         const semestre = document.getElementById('filter-semestre').value;
-
         const tbody = document.getElementById('matieres-tbody');
-        tbody.innerHTML = '';
 
-        const resultats = matieresSimulees.filter(m => m.dept === dept && m.filiere === filiere && m.niveau === niveau && m.semestre === semestre);
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Chargement des matières...</td></tr>`;
 
-        if (resultats.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><i class="bi bi-exclamation-circle me-2"></i>Aucune matière configurée pour cette sélection.</td></tr>`;
-            return;
+        try {
+            const response = await fetch(`/admin/matieres/filter?dept=${dept}&filiere=${filiere}&niveau=${niveau}&semestre=${semestre}`);
+            const matieres = await response.json();
+
+            tbody.innerHTML = '';
+
+            if (!matieres || matieres.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><i class="bi bi-exclamation-circle me-2"></i>Aucune matière réelle enregistrée en base pour cette sélection.</td></tr>`;
+                return;
+            }
+
+            matieres.forEach(m => {
+                const id = m.idMatiere ?? m.id;
+                const code = m.codeMatiere ?? m.code ?? 'N/A';
+                const nom = m.nomMatiere ?? m.nom;
+                const coef = m.coefficient ?? m.coef ?? 1;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="padding-left: 20px;"><span class="badge bg-secondary px-2 py-2">${code}</span></td>
+                        <td class="fw-bold text-dark">${nom}</td>
+                        <td class="text-center fw-bold">${coef}</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning me-2" onclick="openEditModal(${id})">
+                                <i class="bi bi-pencil"></i> Modifier
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteMatiere(${id})">
+                                <i class="bi bi-trash"></i> Supprimer
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (error) {
+            console.error("Erreur de récupération :", error);
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-4"><i class="bi bi-x-circle me-2"></i>Erreur lors du chargement des matières.</td></tr>`;
         }
-
-        resultats.forEach(m => {
-            tbody.innerHTML += `
-                <tr>
-                    <td style="padding-left: 20px;"><span class="badge bg-secondary px-2 py-2">${m.code}</span></td>
-                    <td class="fw-bold text-dark">${m.nom}</td>
-                    <td class="text-center fw-bold">${m.coef}</td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-warning me-2" onclick="openEditModal(${m.id})">
-                            <i class="bi bi-pencil"></i> Modifier
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteMatiere(${m.id})">
-                            <i class="bi bi-trash"></i> Supprimer
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
     }
 
-    // Opérations d'interface du CRUD (Ajout/Modification/Suppression)
     function openAddModal() {
         document.getElementById('modal-title').innerText = "Ajouter une matière";
         document.getElementById('matiere-id').value = '';
-        document.getElementById('form-code').value = '';
-        document.getElementById('form-nom').value = '';
+        document.getElementById('matiereForm').reset();
         document.getElementById('form-coef').value = '1';
         bootstrapModal.show();
     }
 
-    function openEditModal(id) {
-        const mat = matieresSimulees.find(m => m.id === id);
-        if(mat) {
-            document.getElementById('modal-title').innerText = "Modifier la matière";
-            document.getElementById('matiere-id').value = mat.id;
-            document.getElementById('form-code').value = mat.code;
-            document.getElementById('form-nom').value = mat.nom;
-            document.getElementById('form-coef').value = mat.coef;
-            bootstrapModal.show();
-        }
-    }
-
-    function saveMatiere(e) {
-        e.preventDefault();
-        const id = document.getElementById('matiere-id').value;
-        const code = document.getElementById('form-code').value;
-        const nom = document.getElementById('form-nom').value;
-        const coef = document.getElementById('form-coef').value;
-
-        if (id) {
-            let mat = matieresSimulees.find(m => m.id == id);
+    async function openEditModal(id) {
+        try {
+            const response = await fetch(`/admin/matieres/${id}/edit`);
+            const mat = await response.json();
+            
             if(mat) {
-                mat.code = code;
-                mat.nom = nom;
-                mat.coef = coef;
+                document.getElementById('modal-title').innerText = "Modifier la matière";
+                document.getElementById('matiere-id').value = mat.idMatiere ?? mat.id;
+                document.getElementById('form-code').value = mat.codeMatiere ?? mat.code;
+                document.getElementById('form-nom').value = mat.nomMatiere ?? mat.nom;
+                document.getElementById('form-coef').value = mat.coefficient ?? mat.coef;
+                bootstrapModal.show();
             }
-        } else {
-            const newMat = {
-                id: Date.now(),
-                dept: document.getElementById('filter-dept').value,
-                filiere: document.getElementById('filter-filiere').value,
-                niveau: document.getElementById('filter-niveau').value,
-                semestre: document.getElementById('filter-semestre').value,
-                code: code,
-                nom: nom,
-                coef: coef
-            };
-            matieresSimulees.push(newMat);
+        } catch (error) {
+            alert("Erreur lors de la récupération des détails de la matière.");
         }
-
-        bootstrapModal.hide();
-        filterTable();
     }
 
-    function deleteMatiere(id) {
-        if(confirm("Voulez-vous vraiment supprimer cette matière ?")) {
-            matieresSimulees = matieresSimulees.filter(m => m.id !== id);
-            filterTable();
+    async function saveMatiere(e) {
+        e.preventDefault();
+        
+        const form = document.getElementById('matiereForm');
+        const formData = new FormData(form);
+        const id = document.getElementById('matiere-id').value;
+        
+        formData.append('dept', document.getElementById('filter-dept').value);
+        formData.append('filiere', document.getElementById('filter-filiere').value);
+        formData.append('niveau', document.getElementById('filter-niveau').value);
+        formData.append('semestre', document.getElementById('filter-semestre').value);
+
+        // Ajustement des URLs RESTful Laravel standard
+        const url = id ? `/admin/matieres/${id}` : '/admin/matieres';
+        if(id) {
+            formData.append('_method', 'PUT'); // Permet à Laravel de comprendre le PUT avec FormData
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: { 
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                }
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                alert('Matière enregistrée avec succès en base de données !');
+                bootstrapModal.hide();
+                filterTable(); 
+            } else {
+                alert("Erreur de sauvegarde : " + JSON.stringify(result.errors));
+            }
+        } catch (error) {
+            console.error("Erreur système :", error);
+            alert("Une erreur de communication avec le serveur est survenue.");
+        }
+    }
+
+    async function deleteMatiere(id) {
+        if(confirm("Voulez-vous vraiment supprimer définitivement cette matière ?")) {
+            try {
+                const response = await fetch(`/admin/matieres/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: (() => { const d = new FormData(); d.append('_method', 'DELETE'); return d; })()
+                });
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert('Matière supprimée avec succès.');
+                    filterTable(); 
+                } else {
+                    alert('Erreur lors de la suppression.');
+                }
+            } catch (error) {
+                console.error("Erreur système lors de la suppression :", error);
+            }
         }
     }
 </script>

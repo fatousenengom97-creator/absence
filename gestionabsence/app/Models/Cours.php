@@ -6,15 +6,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cours extends Model
 {
+    // On spécifie explicitement la table vue sur phpMyAdmin
+    protected $table = 'cours';
+
     protected $primaryKey = 'idCours';
+    
     protected $fillable = [
-        'idMatiere', 'professeur_id', 'idClasse',
-        'idSalle', 'heureDebut', 'heureFin', 'jour', 'statut',
+        'jour',
+        'heureDebut',
+        'heureFin',
+        'idClasse',
+        'idMatiere',
+        'professeur_id',
+        'idSalle',
+        'typeCours', // Ajouté car présent dans ta table phpMyAdmin
+        'statut',    // Ajouté car présent dans ta table phpMyAdmin
     ];
 
+    // ⚠️ On commente temporairement les casts pour éviter que Laravel ne casse le format de l'heure reçu par le formulaire avant l'insertion SQL
     protected $casts = [
-        'heureDebut' => 'datetime',
-        'heureFin'   => 'datetime',
+        // 'heureDebut' => 'datetime',
+        // 'heureFin'   => 'datetime',
     ];
 
     public function matiere()
@@ -24,7 +36,11 @@ class Cours extends Model
 
     public function professeur()
     {
-        return $this->belongsTo(Professeur::class, 'professeur_id');
+        // Si tes professeurs sont directement dans la table 'users' :
+        return $this->belongsTo(User::class, 'professeur_id');
+        
+        // Si tu as vraiment un modèle indépendant appelé Professeur, remets cette ligne :
+        // return $this->belongsTo(Professeur::class, 'professeur_id');
     }
 
     public function classe()

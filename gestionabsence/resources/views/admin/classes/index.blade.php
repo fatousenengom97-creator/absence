@@ -26,7 +26,7 @@
                 <div class="col">
                     <label class="form-label small fw-bold text-secondary mb-1">2. Filière / Branche</label>
                     <select id="filter-filiere" class="form-select form-select-sm shadow-sm" onchange="filterClassesTable()">
-                        </select>
+                    </select>
                 </div>
 
                 <div class="col">
@@ -59,7 +59,7 @@
                         </tr>
                     </thead>
                     <tbody id="classes-tbody">
-                        </tbody>
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -74,22 +74,23 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="classeForm" onsubmit="saveClasse(event)">
+                @csrf
                 <div class="modal-body">
-                    <input type="hidden" id="classe-id">
+                    <input type="hidden" id="classe-id" name="id">
                     
                     <div class="mb-3">
                         <label class="form-label fw-bold small">Nom complet de la classe</label>
-                        <input type="text" id="form-nom" class="form-control" placeholder="Ex: D2A Licence 1" required>
+                        <input type="text" id="form-nom" name="nom" class="form-control" placeholder="Ex: D2A Licence 1" required>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label fw-bold small">Année Scolaire</label>
-                        <input type="text" id="form-annee" class="form-control" value="2025-2026" placeholder="Ex: 2025-2026" required>
+                        <input type="text" id="form-annee" name="annee" class="form-control" value="2025-2026" placeholder="Ex: 2025-2026" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold small">Effectif Initial (Étudiants)</label>
-                        <input type="number" id="form-effectif" class="form-control" value="0" min="0" required>
+                        <input type="number" id="form-effectif" name="effectif" class="form-control" value="0" min="0" required>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -102,24 +103,6 @@
 </div>
 
 <script>
-    // Données simulées basées sur les filières officielles de l'UFR
-    let classesSimulees = [
-        // Département TIC - D2A & SRT
-        { id: 1, dept: 'TIC', filiere: 'D2A', niveau: 'L1', nom: 'D2A Licence 1', annee: '2025-2026', effectif: 14 },
-        { id: 2, dept: 'TIC', filiere: 'D2A', niveau: 'L2', nom: 'D2A Licence 2', annee: '2025-2026', effectif: 14 },
-        { id: 3, dept: 'TIC', filiere: 'D2A', niveau: 'L3', nom: 'D2A Licence 3', annee: '2025-2026', effectif: 10 },
-        { id: 4, dept: 'TIC', filiere: 'SRT', niveau: 'L1', nom: 'SRT Licence 1', annee: '2025-2026', effectif: 14 },
-        { id: 5, dept: 'TIC', filiere: 'SRT', niveau: 'L2', nom: 'SRT Licence 2', annee: '2025-2026', effectif: 11 },
-        
-        // Département MPC - L1 Tronc commun MPCI
-        { id: 6, dept: 'MPC', filiere: 'MPCI', niveau: 'L1', nom: 'MPCI Licence 1', annee: '2025-2026', effectif: 25 },
-        
-        // Département MPC - L2/L3 Branches (MPI, PC, SID)
-        { id: 7, dept: 'MPC', filiere: 'MPI', niveau: 'L2', nom: 'MPI Licence 2', annee: '2025-2026', effectif: 12 },
-        { id: 8, dept: 'MPC', filiere: 'PC', niveau: 'L2', nom: 'PC Licence 2', annee: '2025-2026', effectif: 8 },
-        { id: 9, dept: 'MPC', filiere: 'SID', niveau: 'L2', nom: 'SID Licence 2', annee: '2025-2026', effectif: 15 }
-    ];
-
     let classeBootstrapModal;
 
     document.addEventListener("DOMContentLoaded", function() {
@@ -127,7 +110,7 @@
         updateFilieres(); 
     });
 
-    // Gestion propre des filières selon le département et le niveau
+    // Gère l'affichage des filières dans le select secondaire selon la logique de l'UFR
     function updateFilieres() {
         const dept = document.getElementById('filter-dept').value;
         const niveau = document.getElementById('filter-niveau').value;
@@ -156,100 +139,144 @@
         updateFilieres();
     }
 
-    // Filtrage et affichage dans le tableau
-    function filterClassesTable() {
+    // RÉCUPÉRATION DYNAMIQUE DEPUIS LA BASE DE DONNÉES (FETCH)
+    async function filterClassesTable() {
         const dept = document.getElementById('filter-dept').value;
         const filiere = document.getElementById('filter-filiere').value;
         const niveau = document.getElementById('filter-niveau').value;
-
         const tbody = document.getElementById('classes-tbody');
-        tbody.innerHTML = '';
+        
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Chargement des classes...</td></tr>`;
 
-        const resultats = classesSimulees.filter(c => c.dept === dept && c.filiere === filiere && c.niveau === niveau);
+        try {
+            // Appel AJAX à l'API Laravel en lui transmettant les critères choisis
+            const response = await fetch(`/admin/classes/filter?dept=${dept}&filiere=${filiere}&niveau=${niveau}`);
+            const classes = await response.json();
 
-        if (resultats.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><i class="bi bi-exclamation-circle me-2"></i>Aucune classe configurée pour cette sélection.</td></tr>`;
-            return;
+            tbody.innerHTML = '';
+
+            if (classes.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4"><i class="bi bi-exclamation-circle me-2"></i>Aucune classe réelle enregistrée en base pour cette sélection.</td></tr>`;
+                return;
+            }
+
+            classes.forEach(c => {
+                // Utilise les clés correspondantes à ton modèle de base de données (idClasse ou id, nomClasse ou nom)
+                const id = c.idClasse ?? c.id;
+                const nom = c.nomClasse ?? c.nom;
+                const annee = c.anneeScolaire ?? c.annee ?? '2025-2026';
+                const effectif = c.effectif ?? 0;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="padding-left: 20px;" class="fw-bold text-dark">${nom}</td>
+                        <td>${annee}</td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border px-3 py-2 fw-bold">${effectif} étudiant(s)</span>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning me-2" onclick="openEditClassModal(${id})">
+                                <i class="bi bi-pencil"></i> Modifier
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteClasse(${id})">
+                                <i class="bi bi-trash"></i> Supprimer
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (error) {
+            console.error("Erreur de filtrage :", error);
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-4"><i class="bi bi-x-circle me-2"></i>Erreur lors de la récupération des données.</td></tr>`;
         }
-
-        resultats.forEach(c => {
-            tbody.innerHTML += `
-                <tr>
-                    <td style="padding-left: 20px;" class="fw-bold text-dark">${c.nom}</td>
-                    <td>${c.annee}</td>
-                    <td class="text-center">
-                        <span class="badge bg-light text-dark border px-3 py-2 fw-bold">${c.effectif} étudiant(s)</span>
-                    </td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-warning me-2" onclick="openEditClassModal(${c.id})">
-                            <i class="bi bi-pencil"></i> Modifier
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteClasse(${c.id})">
-                            <i class="bi bi-trash"></i> Supprimer
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
     }
 
-    // Fonctions CRUD
     function openAddClassModal() {
         document.getElementById('modal-title').innerText = "Ajouter une classe";
         document.getElementById('classe-id').value = '';
-        document.getElementById('form-nom').value = '';
+        document.getElementById('classeForm').reset();
         document.getElementById('form-annee').value = '2025-2026';
         document.getElementById('form-effectif').value = '0';
         classeBootstrapModal.show();
     }
 
-    function openEditClassModal(id) {
-        const classe = classesSimulees.find(c => c.id === id);
-        if(classe) {
-            document.getElementById('modal-title').innerText = "Modifier la classe";
-            document.getElementById('classe-id').value = classe.id;
-            document.getElementById('form-nom').value = classe.nom;
-            document.getElementById('form-annee').value = classe.annee;
-            document.getElementById('form-effectif').value = classe.effectif;
-            classeBootstrapModal.show();
-        }
-    }
-
-    function saveClasse(e) {
-        e.preventDefault();
-        const id = document.getElementById('classe-id').value;
-        const nom = document.getElementById('form-nom').value;
-        const annee = document.getElementById('form-annee').value;
-        const effectif = parseInt(document.getElementById('form-effectif').value);
-
-        if (id) {
-            let classe = classesSimulees.find(c => c.id == id);
+    // PRÉ-REMPLISSAGE DYNAMIQUE AVANT MODIFICATION via un Fetch ciblé
+    async function openEditClassModal(id) {
+        try {
+            const response = await fetch(`/admin/classes/${id}/edit`);
+            const classe = await response.json();
+            
             if(classe) {
-                classe.nom = nom;
-                classe.annee = annee;
-                classe.effectif = effectif;
+                document.getElementById('modal-title').innerText = "Modifier la classe";
+                document.getElementById('classe-id').value = classe.idClasse ?? classe.id;
+                document.getElementById('form-nom').value = classe.nomClasse ?? classe.nom;
+                document.getElementById('form-annee').value = classe.anneeScolaire ?? classe.annee;
+                document.getElementById('form-effectif').value = classe.effectif;
+                classeBootstrapModal.show();
             }
-        } else {
-            const newClasse = {
-                id: Date.now(),
-                dept: document.getElementById('filter-dept').value,
-                filiere: document.getElementById('filter-filiere').value,
-                niveau: document.getElementById('filter-niveau').value,
-                nom: nom,
-                annee: annee,
-                effectif: effectif
-            };
-            classesSimulees.push(newClasse);
+        } catch (error) {
+            alert("Impossible de charger les détails de la classe.");
         }
-
-        classeBootstrapModal.hide();
-        filterClassesTable();
     }
 
-    function deleteClasse(id) {
-        if(confirm("Voulez-vous vraiment supprimer cette classe ?")) {
-            classesSimulees = classesSimulees.filter(c => c.id !== id);
-            filterClassesTable();
+    // SAUVEGARDE ET PERSISTANCE RÉELLE (STORE & UPDATE)
+    async function saveClasse(e) {
+        e.preventDefault();
+        
+        const form = document.getElementById('classeForm');
+        const formData = new FormData(form);
+        const id = document.getElementById('classe-id').value;
+        
+        // Ajout des critères structurels pour que le contrôleur sache où classer l'entité
+        formData.append('dept', document.getElementById('filter-dept').value);
+        formData.append('filiere', document.getElementById('filter-filiere').value);
+        formData.append('niveau', document.getElementById('filter-niveau').value);
+
+        const url = id ? `/admin/classes/${id}/update` : '/admin/classes/store';
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                alert('Classe enregistrée avec succès en base de données !');
+                classeBootstrapModal.hide();
+                filterClassesTable(); // Rafraîchit instantanément le tableau
+            } else {
+                alert("Erreur lors de l'enregistrement : " + JSON.stringify(result.errors));
+            }
+        } catch (error) {
+            console.error("Erreur système :", error);
+            alert("Une erreur est survenue lors de la communication avec le serveur.");
+        }
+    }
+
+    // SUPPRESSION RÉELLE EN BASE DE DONNÉES
+    async function deleteClasse(id) {
+        if(confirm("Voulez-vous vraiment supprimer définitivement cette classe de la base de données ?")) {
+            try {
+                const response = await fetch(`/admin/classes/${id}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert('Classe supprimée avec succès.');
+                    filterClassesTable(); // Rafraîchit instantanément le tableau sans recharger
+                } else {
+                    alert('Erreur lors de la suppression.');
+                }
+            } catch (error) {
+                console.error("Erreur suppression :", error);
+            }
         }
     }
 </script>

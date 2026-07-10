@@ -14,12 +14,14 @@ class AbsenceController extends Controller
         $user  = auth()->user();
         $query = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe']);
 
-        if ($user->isEtudiant()) {
+        // Filtrage dynamique basé sur le rôle de l'utilisateur connecté
+        if ($user->isEtudiant() && $user->etudiant) {
             $query->where('etudiant_id', $user->etudiant->id);
-        } elseif ($user->isProfesseur()) {
+        } elseif ($user->isProfesseur() && $user->professeur) {
             $query->whereHas('cours', fn($q) => $q->where('professeur_id', $user->professeur->id));
         }
 
+        // Filtres de recherche optionnels
         if ($request->filled('date')) {
             $query->whereDate('date', $request->date);
         }
@@ -42,11 +44,13 @@ class AbsenceController extends Controller
         $cours->load(['matiere', 'classe.etudiants.user', 'absences.etudiant.user']);
 
         // Initialiser les absences pour les étudiants qui n'en ont pas encore
-        foreach ($cours->classe->etudiants as $etudiant) {
-            Absence::firstOrCreate(
-                ['etudiant_id' => $etudiant->id, 'idCours' => $cours->idCours, 'date' => today()],
-                ['statut' => 'absent']
-            );
+        if ($cours->classe && $cours->classe->etudiants) {
+            foreach ($cours->classe->etudiants as $etudiant) {
+                Absence::firstOrCreate(
+                    ['etudiant_id' => $etudiant->id, 'idCours' => $cours->idCours, 'date' => today()],
+                    ['statut' => 'absent']
+                );
+            }
         }
 
         $cours->refresh()->load('absences.etudiant.user');

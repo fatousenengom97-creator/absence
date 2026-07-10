@@ -30,16 +30,44 @@ class ProfesseurController extends Controller
         return view('professeur.etudiants', compact('etudiants'));
     }
 
-    public function absencesClasse(Request $request)
-    {
-        $professeur = auth()->user()->professeur;
-        $absences   = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
-            ->whereHas('cours', fn($q) => $q->where('professeur_id', $professeur->id))
-            ->when($request->date, fn($q) => $q->whereDate('date', $request->date))
-            ->latest('date')->paginate(20);
+   public function absencesClasse(Request $request)
+{
+    // 1. Récupérer le professeur connecté
+    $professeur = auth()->user()->professeur;
 
-        return view('professeur.absences', compact('absences'));
-    }
+    // 2. Récupérer les filtres du formulaire (Ta vue utilise name="classe" et name="statut")
+    $dateFiltre   = $request->get('date');
+    $statutFiltre = $request->get('statut');
+    $classeFiltre = $request->get('classe'); // correspond à name="classe" dans ta vue
+
+    // 3. Requête principale des absences
+    $absences = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
+        ->whereHas('cours', function ($q) use ($professeur, $classeFiltre) {
+            // Filtrer uniquement les cours attribués à ce professeur
+            $q->where('professeur_id', $professeur->id);
+            
+            // Si l'utilisateur filtre par classe
+            if (!empty($classeFiltre)) {
+                $q->where('idClasse', $classeFiltre);
+            }
+        })
+        // Filtre optionnel par date
+        ->when($dateFiltre, function ($q) use ($dateFiltre) {
+            $q->whereDate('date', $dateFiltre);
+        })
+        // Filtre optionnel par statut (présent, absent, retard, justifié)
+        ->when($statutFiltre, function ($q) use ($statutFiltre) {
+            $q->where('statut', $statutFiltre);
+        })
+        ->latest('date')
+        ->paginate(20);
+
+    // 4. Charger toutes les classes pour le menu déroulant <select name="classe">
+    $classes = \App\Models\Classe::all();
+
+    // 5. Envoyer EXACTEMENT les variables attendues par ta vue Blade
+    return view('absences.index', compact('absences', 'classes'));
+}
 
     public function declarerPointage(Request $request, Cours $cours)
     {

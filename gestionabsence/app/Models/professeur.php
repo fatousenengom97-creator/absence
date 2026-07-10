@@ -11,9 +11,12 @@ class Professeur extends Model
 
     protected $fillable = ['user_id', 'matricule', 'specialite'];
 
+    /**
+     * Relation avec le compte User
+     */
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function matieres()
@@ -26,8 +29,14 @@ class Professeur extends Model
         return $this->hasMany(Cours::class, 'professeur_id');
     }
 
+    /**
+     * Récupère le nom du prof depuis la table users
+     */
     public function getFullNameAttribute(): string
     {
-        return $this->user->full_name;
+        if ($this->user) {
+            return $this->user->full_name;
+        }
+        return 'Professeur Anonyme';
     }
 }
