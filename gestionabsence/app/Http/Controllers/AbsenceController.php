@@ -116,16 +116,42 @@ class AbsenceController extends Controller
     }
 
     /* ---- Statistiques pour chef de service ---- */
-    public function statistiques()
-    {
-        $classes = Classe::with(['etudiants'])->get()->map(function ($classe) {
-            $total    = Absence::whereHas('cours', fn($q) => $q->where('idClasse', $classe->idClasse))->count();
-            $absents  = Absence::whereHas('cours', fn($q) => $q->where('idClasse', $classe->idClasse))
-                ->where('statut', 'absent')->count();
-            $classe->taux_absence = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
-            return $classe;
-        });
+    /* ---- Statistiques pour chef de service ---- */
+public function statistiques()
+{
+    // 1. Calculs globaux pour les blocs du haut
+    $totalPointages = Absence::count();
+    
+    $totalAbsences = Absence::where('statut', 'absent')->count();
+    $totalPresences = Absence::where('statut', 'present')->count();
+    
+    // Taux de présence global
+    $tauxPresenceGlobal = $totalPointages > 0 
+        ? round(($totalPresences / $totalPointages) * 100, 1) 
+        : 100; // 100% par défaut si aucun enregistrement
 
-        return view('absences.statistiques', compact('classes'));
-    }
+    // Étudiants réguliers : par exemple, étudiants ayant moins de 3 absences au total
+    // (Tu pourras ajuster ce seuil selon vos règles à l'UADB)
+    $seuilAbsences = 3;
+    $etudiantsReguliersCount = \App\Models\Etudiant::whereDoesntHave('absences', function($query) {
+        $query->where('statut', 'absent');
+    }, '>=', $seuilAbsences)->count();
+
+    // 2. Ton calcul par classe existant (optimisé pour éviter trop de requêtes SQL)
+    $classes = Classe::with(['etudiants'])->get()->map(function ($classe) {
+        $total = Absence::whereHas('cours', fn($q) => $q->where('idClasse', $classe->idClasse))->count();
+        
+        $absents = Absence::whereHas('cours', fn($q) => $q->where('idClasse', $classe->idClasse))
+            ->where('statut', 'absent')->count();
+            
+        $classe->taux_absence = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
+        $classe->taux_presence = $total > 0 ? round((($total - $absents) / $total) * 100, 1) : 100;
+        $classe->total_absences = $absents;
+        
+        return $classe;
+    });
+
+    // On passe toutes les variables à la vue
+    return view('absences.statistiques', compact('classes', 'tauxPresenceGlobal', 'totalAbsences', 'etudiantsReguliersCount'));
+}
 }

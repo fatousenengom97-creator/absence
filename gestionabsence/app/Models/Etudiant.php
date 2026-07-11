@@ -22,6 +22,12 @@ class Etudiant extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function classe()
+{
+    // On spécifie bien 'idClasse' comme clé étrangère puisque c'est le nom dans ta base
+    return $this->belongsTo(Classe::class, 'idClasse');
+}
+
     // Historique complet des inscriptions (toutes années confondues)
     public function inscriptions()
     {
