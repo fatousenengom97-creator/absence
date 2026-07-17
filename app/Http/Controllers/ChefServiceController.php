@@ -193,4 +193,18 @@ class ChefServiceController extends Controller
 
         return view('chef.rapport', compact('classes'));
     }
+public function alertes()
+{
+    $absencesModifiees = \App\Models\Absence::with([
+        'etudiant.user',
+        'cours.matiere',
+        'cours.classe'
+    ])
+    ->whereIn('statut', ['justifie', 'retard', 'present'])
+    ->orderByDesc('updated_at')
+    ->paginate(20);
+
+    return view('chef.alertes', compact('absencesModifiees'));
+}
+
 }

@@ -14,7 +14,6 @@ class Salle extends Model
         return $this->hasMany(Cours::class, 'idSalle', 'idSalle');
     }
 
-    // Vérifie si la salle est occupée à un moment donné
     public function estOccupee($debut, $fin)
     {
         return $this->cours()

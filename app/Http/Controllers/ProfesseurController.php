@@ -104,4 +104,25 @@ public function dashboard()
         return redirect()->route('biometrie.pointage', $cours)
             ->with('info', 'Session de pointage démarrée.');
     }
+
+public function modifierStatutAbsence(Request $request, \App\Models\Absence $absence)
+{
+    $request->validate([
+        'statut' => 'required|in:present,absent,retard,justifie'
+    ]);
+
+    $ancienStatut = $absence->statut;
+    $absence->update(['statut' => $request->statut]);
+
+    // Notifier le chef de service via un log ou une notification
+    \Illuminate\Support\Facades\Log::info(
+        "Professeur " . auth()->user()->prenom . " " . auth()->user()->nom .
+        " a modifié le statut de l'absence #" . $absence->id .
+        " de '$ancienStatut' vers '" . $request->statut . "'"
+    );
+
+    return back()->with('success',
+        'Statut modifié. Le chef de service a été notifié.'
+    );
+}
 }

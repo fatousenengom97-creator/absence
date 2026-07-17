@@ -7,7 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 class EmploiDuTemps extends Model
 {
     protected $table = 'emplois_du_temps';
-    protected $primaryKey = 'idEDT';
+    
+
+protected $primaryKey = 'idEDT';
+public $incrementing = true;
+protected $keyType = 'int';
+
+public function getRouteKeyName()
+{
+    return 'idEDT';
+}
+
     protected $fillable = [
         'idClasse', 'professeur_id', 'idMatiere',
         'idSalle', 'jour', 'heureDebut', 'heureFin',

@@ -118,7 +118,7 @@ Route::middleware(['auth', 'role:professeur'])
     Route::get('/etudiants', [ProfesseurController::class, 'mesEtudiants'])->name('etudiants');
     Route::get('/absences', [ProfesseurController::class, 'absencesClasse'])->name('absences');
     Route::post('/cours/{cours}/pointage', [ProfesseurController::class, 'declarerPointage'])->name('pointage');
-    
+    Route::patch('/absences/{absence}/modifier-statut', [ProfesseurController::class, 'modifierStatutAbsence'])->name('absence.modifier');
     // NOUVELLE ROUTE : Emploi du temps propre au professeur connecté
     Route::get('/mon-emploi-du-temps', [ProfesseurController::class, 'monEmploiDuTemps'])->name('emploi-du-temps');
 });
@@ -131,10 +131,6 @@ Route::middleware(['auth', 'role:etudiant'])
     ->prefix('etudiant')->name('etudiant.')->group(function () {
     Route::get('/dashboard', [EtudiantController::class, 'dashboard'])->name('dashboard');
     Route::get('/absences', [EtudiantController::class, 'mesAbsences'])->name('absences');
-    Route::get('/cours', [EtudiantController::class, 'mesCours'])->name('cours');
-    
-    // NOUVELLE ROUTE : Emploi du temps de la classe de l'étudiant connecté
-    Route::get('/mon-emploi-du-temps', [EtudiantController::class, 'monEmploiDuTemps'])->name('emploi-du-temps');
 });
 
 

@@ -3,6 +3,8 @@
 @section('page-title', 'Reconnaissance faciale — Biométrie')
 
 @section('content')
+
+{{-- Stats --}}
 <div class="row g-4 mb-4">
     <div class="col-md-4">
         <div class="card text-center">
@@ -33,9 +35,65 @@
     </div>
 </div>
 
+{{-- Bouton lancer pointage (professeur uniquement) --}}
+@if(auth()->user()->role === 'professeur')
+@php
+    $coursEnCours = \App\Models\Cours::with(['matiere','classe'])
+        ->where('professeur_id', auth()->user()->professeur->id)
+        ->where('statut', 'en_cours')
+        ->first();
+    $coursAujourdhui = \App\Models\Cours::with(['matiere','classe'])
+        ->where('professeur_id', auth()->user()->professeur->id)
+        ->whereDate('heureDebut', today())
+        ->where('statut', 'planifie')
+        ->first();
+@endphp
+
+@if($coursEnCours)
+<div class="alert alert-success d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <i class="bi bi-camera-video me-2"></i>
+        <strong>Cours en cours :</strong>
+        {{ $coursEnCours->matiere->nomMatiere ?? '—' }} —
+        {{ $coursEnCours->classe->nom ?? '—' }}
+    </div>
+    <a href="{{ route('biometrie.pointage', $coursEnCours) }}" class="btn btn-success">
+        <i class="bi bi-camera me-2"></i>Lancer la reconnaissance faciale
+    </a>
+</div>
+@elseif($coursAujourdhui)
+<div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <i class="bi bi-clock me-2"></i>
+        <strong>Prochain cours :</strong>
+        {{ $coursAujourdhui->matiere->nomMatiere ?? '—' }} —
+        {{ $coursAujourdhui->classe->nom ?? '—' }}
+        à {{ \Carbon\Carbon::parse($coursAujourdhui->heureDebut)->format('H:i') }}
+    </div>
+    <form method="POST" action="{{ route('cours.demarrer', $coursAujourdhui) }}">
+        @csrf
+        <button class="btn btn-primary">
+            <i class="bi bi-play-fill me-2"></i>Démarrer + Lancer pointage
+        </button>
+    </form>
+</div>
+@else
+<div class="alert alert-warning mb-4">
+    <i class="bi bi-info-circle me-2"></i>
+    Aucun cours planifié aujourd'hui. Rendez-vous sur votre
+    <a href="{{ route('professeur.dashboard') }}" class="alert-link">emploi du temps</a>
+    pour démarrer un cours.
+</div>
+@endif
+@endif
+
+{{-- Liste étudiants --}}
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-camera me-2"></i>Liste des étudiants</span>
+        @if(auth()->user()->role === 'administrateur')
+        <small class="text-muted">Cliquez sur "Enregistrer" pour ajouter le profil facial d'un étudiant</small>
+        @endif
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -46,7 +104,9 @@
                         <th>Classe</th>
                         <th>Statut biométrique</th>
                         <th>Dernière mise à jour</th>
+                        @if(auth()->user()->role === 'administrateur')
                         <th>Action</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -67,9 +127,13 @@
                     <td><small>{{ $etudiant->inscriptionActuelle?->classe?->nom ?? '—' }}</small></td>
                     <td>
                         @if($etudiant->donneesBiometriques->isNotEmpty())
-                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Enregistré</span>
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>Enregistré
+                            </span>
                         @else
-                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle me-1"></i>Non enregistré</span>
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-exclamation-circle me-1"></i>Non enregistré
+                            </span>
                         @endif
                     </td>
                     <td>
@@ -77,6 +141,8 @@
                             {{ $etudiant->donneesBiometriques->first()?->dateEnregistre?->format('d/m/Y H:i') ?? '—' }}
                         </small>
                     </td>
+                    {{-- Bouton enregistrement UNIQUEMENT pour l'admin --}}
+                    @if(auth()->user()->role === 'administrateur')
                     <td>
                         <a href="{{ route('biometrie.enregistrer', $etudiant) }}"
                            class="btn btn-sm {{ $etudiant->donneesBiometriques->isNotEmpty() ? 'btn-outline-primary' : 'btn-primary' }}">
@@ -84,6 +150,7 @@
                             {{ $etudiant->donneesBiometriques->isNotEmpty() ? 'Mettre à jour' : 'Enregistrer' }}
                         </a>
                     </td>
+                    @endif
                 </tr>
                 @empty
                 <tr><td colspan="5" class="text-center text-muted py-5">

@@ -1,58 +1,54 @@
 @extends('layouts.app')
+@section('title', 'Alertes absences')
+@section('page-title', 'Alertes — Modifications de statuts')
 
 @section('content')
-<div class="container-fluid px-4">
-    <div class="my-4">
-        <h3 class="fw-bold text-danger"><i class="bi bi-bell-fill me-2"></i>Suivi des Alertes Pédagogiques</h3>
-        <p class="text-muted">Liste des étudiants ayant cumulé plus de 3 absences (Seuil d'avertissement).</p>
+<div class="card">
+    <div class="card-header" style="background:#0B1F33;color:#fff;">
+        <i class="bi bi-bell me-2"></i>Modifications récentes de statuts d'absence
     </div>
-
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="ps-3">Étudiant</th>
-                            <th>Email</th>
-                            <th>Filière & Niveau</th>
-                            <th class="text-center">Total Absences</th>
-                            <th class="text-end pe-3">Statut</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($etudiants as $etudiant)
-                            <tr>
-                                <td class="ps-3 fw-semibold">{{ $etudiant->user->name ?? 'N/A' }}</td>
-                                <td>{{ $etudiant->user->email ?? 'N/A' }}</td>
-                                <td>{{ $etudiant->classe->filiere->nom ?? 'N/A' }}</td>
-                                <td class="text-center">
-                                    <span class="badge bg-{{ $etudiant->nb_absences > 5 ? 'danger' : 'warning' }} px-3 py-2 fs-6">
-                                        {{ $etudiant->nb_absences }} absences
-                                    </span>
-                                </td>
-                                <td class="text-end pe-3">
-                                    @if($etudiant->nb_absences > 5)
-                                        <span class="badge bg-light text-danger border border-danger">Exclusion temporaire</span>
-                                    @else
-                                        <span class="badge bg-light text-warning border border-warning">Avertissement</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">Aucun étudiant en alerte pour le moment. Félicitations à l'UFR !</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Étudiant</th>
+                        <th>Matière</th>
+                        <th>Classe</th>
+                        <th>Date</th>
+                        <th>Statut actuel</th>
+                        <th>Modifié le</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @forelse($absencesModifiees as $absence)
+                <tr>
+                    <td>
+                        <div class="fw-semibold small">
+                            {{ $absence->etudiant->user->prenom ?? '—' }}
+                            {{ $absence->etudiant->user->nom ?? '' }}
+                        </div>
+                    </td>
+                    <td><small>{{ $absence->cours->matiere->nomMatiere ?? '—' }}</small></td>
+                    <td><small>{{ $absence->cours->classe->nom ?? '—' }}</small></td>
+                    <td><small>{{ \Carbon\Carbon::parse($absence->date)->format('d/m/Y') }}</small></td>
+                    <td>
+                        @php $colors=['present'=>'success','absent'=>'danger','retard'=>'warning','justifie'=>'info']; @endphp
+                        <span class="badge bg-{{ $colors[$absence->statut]??'secondary' }}">
+                            {{ ucfirst($absence->statut) }}
+                        </span>
+                    </td>
+                    <td><small class="text-muted">{{ $absence->updated_at->format('d/m/Y H:i') }}</small></td>
+                </tr>
+                @empty
+                <tr><td colspan="6" class="text-center text-muted py-5">
+                    <i class="bi bi-check-circle fs-2 d-block mb-2 text-success"></i>
+                    Aucune modification récente.
+                </td></tr>
+                @endforelse
+                </tbody>
+            </table>
         </div>
-        @if($etudiants->hasPages())
-            <div class="card-footer bg-white py-3 border-0">
-                {{ $etudiants->links() }}
-            </div>
-        @endif
     </div>
 </div>
 @endsection

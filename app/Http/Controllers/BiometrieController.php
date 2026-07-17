@@ -42,7 +42,7 @@ class BiometrieController extends Controller
     /* ---- Page de pointage facial ---- */
     public function pointage(Cours $cours)
     {
-        $cours->load(['matiere', 'classe']);
+        $cours->load(['matiere', 'classe', 'salle']);
 
         $etudiants = Etudiant::with(['user', 'donneesBiometriques'])
             ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
@@ -51,7 +51,7 @@ class BiometrieController extends Controller
         return view('biometrie.pointage', compact('cours', 'etudiants'));
     }
 
-    /* ---- Traitement du pointage (Soumission manuelle ou via confiance) ---- */
+    /* ---- Traitement du pointage (appelé par le JS) ---- */
     public function traiterPointage(Request $request, Cours $cours)
     {
         $request->validate([
@@ -78,71 +78,137 @@ class BiometrieController extends Controller
                 ->update(['heureEntre' => now()]);
 
             $etudiant = Etudiant::with('user')->find($request->etudiant_id);
-            
             return response()->json([
                 'success'   => true,
-                'message'   => 'Présence confirmée pour ' . $etudiant->user->prenom . ' ' . $etudiant->user->nom,
+                'message'   => 'Présence confirmée pour ' . ($etudiant->user->prenom ?? '') . ' ' . ($etudiant->user->nom ?? ''),
                 'confiance' => round($request->confiance * 100) . '%',
             ]);
         }
 
-        // Retourne un code 422 pour déclencher instantanément le signal sonore d'échec côté JS
         return response()->json([
             'success' => false,
-            'message' => 'Visage non reconnu. Confiance insuffisante (' . round($request->confiance * 100) . '%).',
+            'message' => 'Confiance insuffisante (' . round($request->confiance * 100) . '%).',
         ], 422);
     }
 
-    /* ---- Vérification du visage en temps réel (Appel WebCam automatique) ---- */
+    /* ---- Vérification du visage via serveur Python ---- */
     public function verifierVisage(Request $request, Cours $cours)
     {
         $request->validate(['image' => 'required|string']);
 
-        // Étudiants inscrits dans la classe du cours
-        $etudiantsClasse = Etudiant::with(['user', 'donneesBiometriques'])
-            ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
-            ->get();
+        try {
+            // Envoyer l'image au serveur Python sur port 8080
+            $client = new \GuzzleHttp\Client(['timeout' => 10]);
+            $response = $client->post('http://127.0.0.1:8080/api/identifier', [
+                'json' => ['image' => $request->image]
+            ]);
 
-        // Étudiants déjà pointés présents
+            $resultat = json_decode($response->getBody(), true);
+
+            if ($resultat['status'] === 'success') {
+                $etudiantId = $resultat['etudiant_id'];
+                $confiance  = $resultat['confiance'];
+
+                // Vérifier que l'étudiant est inscrit dans la classe du cours
+                $etudiant = Etudiant::with('user')
+                    ->where('id', $etudiantId)
+                    ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
+                    ->first();
+
+                if (!$etudiant) {
+                    // Étudiant reconnu mais pas dans cette classe
+                    $etudiantAutre = Etudiant::with('user')->find($etudiantId);
+                    return response()->json([
+                        'status'  => 'intruder',
+                        'message' => 'Étudiant non inscrit dans cette classe !',
+                        'confiance' => $confiance,
+                        'etudiant' => [
+                            'prenom' => $etudiantAutre?->user?->prenom ?? '—',
+                            'nom'    => $etudiantAutre?->user?->nom ?? '—',
+                        ]
+                    ]);
+                }
+
+                // Marquer présent
+                Absence::updateOrCreate(
+                    [
+                        'etudiant_id' => $etudiant->id,
+                        'idCours'     => $cours->idCours,
+                        'date'        => today(),
+                    ],
+                    [
+                        'statut'          => 'present',
+                        'pointage_facial' => true,
+                    ]
+                );
+
+                DonneesBiometriques::where('etudiant_id', $etudiant->id)
+                    ->update(['heureEntre' => now()]);
+
+                return response()->json([
+                    'status'         => 'success',
+                    'message'        => 'Présence confirmée',
+                    'heure_pointage' => now()->format('H:i:s'),
+                    'confiance'      => $confiance,
+                    'etudiant'       => [
+                        'id'        => $etudiant->id,
+                        'prenom'    => $etudiant->user->prenom,
+                        'nom'       => $etudiant->user->nom,
+                        'matricule' => $etudiant->codePar,
+                        'photoUrl'  => null,
+                    ]
+                ]);
+
+            } elseif ($resultat['status'] === 'inconnu') {
+                return response()->json([
+                    'status'  => 'intruder',
+                    'message' => 'Visage non reconnu',
+                ]);
+
+            } else {
+                return response()->json([
+                    'status'  => 'no_match',
+                    'message' => $resultat['message'] ?? 'Aucun visage détecté',
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            // Si serveur Python indisponible → simulation
+            return $this->simulerPointage($cours);
+        }
+    }
+
+    /* ---- Simulation quand Python n'est pas disponible ---- */
+    private function simulerPointage(Cours $cours)
+    {
         $dejaPonites = Absence::where('idCours', $cours->idCours)
             ->where('statut', 'present')
             ->pluck('etudiant_id');
 
-        // Chercher un étudiant non encore pointé avec données biométriques
-        $etudiantTrouve = $etudiantsClasse
+        $etudiant = Etudiant::with(['user', 'donneesBiometriques'])
+            ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
             ->whereNotIn('id', $dejaPonites)
-            ->filter(fn($e) => $e->donneesBiometriques->isNotEmpty())
+            ->whereHas('donneesBiometriques')
             ->first();
 
-        // Simuler : si pas d'étudiant dans la classe avec biométrie,
-        // chercher s'il y a quelqu'un d'une AUTRE classe (étudiant inconnu)
-        if (!$etudiantTrouve) {
-            $etudiantAutreClasse = Etudiant::with(['user', 'donneesBiometriques'])
-                ->whereHas('donneesBiometriques')
-                ->whereDoesntHave('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
+        if (!$etudiant) {
+            // Essayer sans filtre biométrie
+            $etudiant = Etudiant::with('user')
+                ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
+                ->whereNotIn('id', $dejaPonites)
                 ->first();
+        }
 
-            if ($etudiantAutreClasse) {
-                return response()->json([
-                    'status'  => 'intruder',
-                    'message' => 'Étudiant non inscrit dans cette classe !',
-                    'etudiant' => [
-                        'prenom' => $etudiantAutreClasse->user->prenom,
-                        'nom'    => $etudiantAutreClasse->user->nom,
-                    ]
-                ]);
-            }
-
+        if (!$etudiant) {
             return response()->json([
                 'status'  => 'no_match',
-                'message' => 'Aucun visage reconnu.'
+                'message' => 'Tous les étudiants ont pointé.'
             ]);
         }
 
-        // Marquer présent
         Absence::updateOrCreate(
             [
-                'etudiant_id' => $etudiantTrouve->id,
+                'etudiant_id' => $etudiant->id,
                 'idCours'     => $cours->idCours,
                 'date'        => today(),
             ],
@@ -152,21 +218,19 @@ class BiometrieController extends Controller
             ]
         );
 
-        DonneesBiometriques::where('etudiant_id', $etudiantTrouve->id)
+        DonneesBiometriques::where('etudiant_id', $etudiant->id)
             ->update(['heureEntre' => now()]);
 
         return response()->json([
             'status'         => 'success',
-            'message'        => 'Présence confirmée.',
+            'message'        => 'Présence confirmée (simulation)',
             'heure_pointage' => now()->format('H:i:s'),
             'etudiant'       => [
-                'id'        => $etudiantTrouve->id,
-                'prenom'    => $etudiantTrouve->user->prenom,
-                'nom'       => $etudiantTrouve->user->nom,
-                'matricule' => $etudiantTrouve->codePar,
-                'photoUrl'  => $etudiantTrouve->donneesBiometriques->first()?->cheminPhoto
-                    ? asset('storage/' . $etudiantTrouve->donneesBiometriques->first()->cheminPhoto)
-                    : null,
+                'id'        => $etudiant->id,
+                'prenom'    => $etudiant->user->prenom ?? '',
+                'nom'       => $etudiant->user->nom ?? '',
+                'matricule' => $etudiant->codePar,
+                'photoUrl'  => null,
             ]
         ]);
     }

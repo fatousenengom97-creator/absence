@@ -1,163 +1,190 @@
 @extends('layouts.app')
+@section('title', 'Mon espace')
+@section('page-title', 'Mon espace étudiant')
+
+@push('styles')
+<style>
+    .grille-edt { border-collapse:collapse; width:100%; table-layout:fixed; }
+    .grille-edt th { background:#0B1F33; color:#fff; text-align:center; font-size:.78rem; padding:8px 4px; border:1px solid #1e3a5c; }
+    .grille-edt td { border:1px solid #e5e7eb; padding:2px; vertical-align:top; height:50px; background:#fafafa; }
+    .heure-col { width:60px!important; background:#f1f5f9!important; text-align:center; font-size:.7rem; color:#64748b; font-weight:700; vertical-align:middle!important; }
+    .bloc-cours { border-radius:7px; padding:5px 7px; font-size:.68rem; color:#fff; min-height:46px; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+    .bloc-cours .mat { font-weight:700; font-size:.72rem; }
+    .bloc-cours .info { opacity:.9; font-size:.62rem; line-height:1.3; }
+</style>
+@endpush
 
 @section('content')
-<div class="container py-4">
-    <!-- En-tête de bienvenue -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <h1 class="h3 mb-1">Bonjour, {{ $etudiant->prenom ?? auth()->user()->name }} !</h1>
-            <p class="text-muted">Ravi de vous revoir. Voici un aperçu de votre situation aujourd'hui.</p>
+
+{{-- Stats --}}
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center py-3">
+            <i class="bi bi-mortarboard fs-2 text-primary"></i>
+            <h6 class="mt-1 mb-0 small">{{ $classe?->nom ?? '—' }}</h6>
+            <small class="text-muted">Ma classe</small>
         </div>
     </div>
-
-    <!-- Section Statistiques -->
-    <div class="row g-3 mb-4">
-        <!-- Carte Classe -->
-        <div class="col-md-4">
-            <div class="card h-100 border-start border-primary border-3 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0 bg-primary bg-opacity-10 text-primary p-3 rounded">
-                            <i class="bi bi-mortarboard fs-3"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="card-subtitle text-muted mb-1">Votre Classe</h6>
-                            <h5 class="card-title mb-0">{{ $classe->nomClasse ?? 'Non assignée' }}</h5>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Carte Absences non justifiées -->
-        <div class="col-md-4">
-            <div class="card h-100 border-start border-danger border-3 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0 bg-danger bg-opacity-10 text-danger p-3 rounded">
-                            <i class="bi bi-exclamation-triangle fs-3"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="card-subtitle text-muted mb-1">Absences Signalées</h6>
-                            <h5 class="card-title mb-0">{{ $totalAbsences }}</h5>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Carte Absences Justifiées -->
-        <div class="col-md-4">
-            <div class="card h-100 border-start border-success border-3 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0 bg-success bg-opacity-10 text-success p-3 rounded">
-                            <i class="bi bi-file-earmark-check fs-3"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="card-subtitle text-muted mb-1">Absences Justifiées</h6>
-                            <h5 class="card-title mb-0">{{ $totalJustifies }}</h5>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="col-md-3">
+        <div class="card text-center py-3">
+            <i class="bi bi-book fs-2 text-success"></i>
+            <h5 class="mt-1">{{ $coursAujourdhui->count() }}</h5>
+            <small class="text-muted">Cours aujourd'hui</small>
         </div>
     </div>
-
-    <!-- Section Cours -->
-    <div class="row g-4">
-        <!-- Cours d'aujourd'hui -->
-        <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0"><i class="bi bi-calendar-event me-2 text-primary"></i>Cours d'aujourd'hui</h5>
-                </div>
-                <div class="card-body p-0">
-                    @if(empty($coursAujourdhui) || $coursAujourdhui->isEmpty())
-                        <div class="text-center text-muted py-5">
-                            <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
-                            Aucun cours programmé pour aujourd'hui.
-                        </div>
-                    @else
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Heure</th>
-                                        <th>Matière</th>
-                                        <th>Salle</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($coursAujourdhui as $cours)
-                                        <tr>
-                                            <td class="fw-bold text-primary">
-                                                {{ \Carbon\Carbon::parse($cours->heureDebut)->format('H:i') }} - 
-                                                {{ \Carbon\Carbon::parse($cours->heureFin)->format('H:i') }}
-                                            </td>
-                                            <td>
-                                                <span class="d-block fw-semibold">{{ $cours->matiere->nomMatiere }}</span>
-                                                <small class="text-muted">{{ $cours->professeur->user->name ?? 'Professeur' }}</small>
-                                            </td>
-                                            <td><span class="badge bg-secondary">{{ $cours->salle->nomSalle }}</span></td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
-                </div>
-            </div>
+    <div class="col-md-3">
+        <div class="card text-center py-3">
+            <i class="bi bi-clipboard-x fs-2 text-danger"></i>
+            <h5 class="mt-1">{{ $totalAbsences }}</h5>
+            <small class="text-muted">Absences</small>
         </div>
-
-        <!-- Prochains cours de la semaine -->
-        <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0"><i class="bi bi-calendar-week me-2 text-success"></i>Prochains cours de la semaine</h5>
-                </div>
-                <div class="card-body p-0">
-                    {{-- CORRECTION FAITE ICI : $prochainsCoours est devenu $prochainsCours --}}
-                    @if(empty($prochainsCours) || $prochainsCours->isEmpty())
-                        <div class="text-center text-muted py-5">
-                            <i class="bi bi-calendar fs-2 d-block mb-2"></i>
-                            Aucun autre cours planifié pour le reste de la semaine.
-                        </div>
-                    @else
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Date & Heure</th>
-                                        <th>Matière</th>
-                                        <th>Salle</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {{-- CORRECTION FAITE ICI : $prochainsCoours est devenu $prochainsCours --}}
-                                    @foreach($prochainsCours as $cours)
-                                        <tr>
-                                            <td>
-                                                <span class="d-block fw-semibold">{{ \Carbon\Carbon::parse($cours->heureDebut)->translatedFormat('l d F') }}</span>
-                                                <small class="text-primary fw-bold">
-                                                    {{ \Carbon\Carbon::parse($cours->heureDebut)->format('H:i') }} - 
-                                                    {{ \Carbon\Carbon::parse($cours->heureFin)->format('H:i') }}
-                                                </small>
-                                            </td>
-                                            <td>
-                                                <span class="d-block fw-semibold">{{ $cours->matiere->nomMatiere }}</span>
-                                                <small class="text-muted">{{ $cours->professeur->user->name ?? 'Professeur' }}</small>
-                                            </td>
-                                            <td><span class="badge bg-secondary">{{ $cours->salle->nomSalle }}</span></td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
-                </div>
-            </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center py-3">
+            <i class="bi bi-patch-check fs-2 text-info"></i>
+            <h5 class="mt-1">{{ $totalJustifies }}</h5>
+            <small class="text-muted">Justifiées</small>
         </div>
+    </div>
+</div>
+
+{{-- Cours aujourd'hui --}}
+@if($coursAujourdhui->isNotEmpty())
+<div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white">
+        <i class="bi bi-calendar-today me-2"></i>Mes cours aujourd'hui — {{ now()->format('d/m/Y') }}
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Matière</th>
+                    <th>Professeur</th>
+                    <th>Salle</th>
+                    <th>Début</th>
+                    <th>Fin</th>
+                    <th>Type</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach($coursAujourdhui as $c)
+            <tr>
+                <td><strong>{{ $c->matiere?->nomMatiere ?? '—' }}</strong></td>
+                <td><small>{{ $c->professeur?->user?->prenom ?? '—' }} {{ $c->professeur?->user?->nom ?? '' }}</small></td>
+                <td><small>{{ $c->salle?->nom ?? '—' }}</small></td>
+                <td><span class="badge bg-primary">{{ \Carbon\Carbon::parse($c->heureDebut)->format('H:i') }}</span></td>
+                <td><span class="badge bg-secondary">{{ \Carbon\Carbon::parse($c->heureFin)->format('H:i') }}</span></td>
+                <td><span class="badge bg-dark">{{ $c->typeCours }}</span></td>
+                <td>
+                    @php $colors=['planifie'=>'secondary','en_cours'=>'success','termine'=>'dark','annule'=>'danger']; @endphp
+                    <span class="badge bg-{{ $colors[$c->statut]??'secondary' }}">
+                        {{ ucfirst(str_replace('_',' ',$c->statut)) }}
+                    </span>
+                </td>
+            </tr>
+            @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
+{{-- EDT de la semaine --}}
+@if($classe)
+@php
+    $jours  = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+    $heures = range(8, 18);
+@endphp
+<div class="card mb-4">
+    <div class="card-header" style="background:#0B1F33;color:#fff;">
+        <i class="bi bi-calendar-week me-2"></i>
+        Mon emploi du temps — {{ $classe->nom }}
+        <small style="color:#00D9C0;float:right;">Lundi → Samedi • 08h → 19h</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="grille-edt">
+                <thead>
+                    <tr>
+                        <th style="width:60px;">Heure</th>
+                        @foreach($jours as $jour)
+                        <th style="min-width:130px;">{{ $jour }}</th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach($heures as $h)
+                @php $hStr = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00'; @endphp
+                <tr>
+                    <td class="heure-col">{{ $hStr }}</td>
+                    @foreach($jours as $jour)
+                    @php
+                        $creneaux = $edtClasse->filter(function($e) use ($jour, $hStr) {
+                            return $e->jour === $jour && substr($e->heureDebut, 0, 5) === $hStr;
+                        });
+                    @endphp
+                    <td>
+                        @foreach($creneaux as $e)
+                        <div class="bloc-cours" style="background:{{ $e->couleur ?? '#3B82F6' }};">
+                            <div class="mat">{{ $e->matiere?->nomMatiere ?? '—' }}</div>
+                            <div class="info">
+                                {{ substr($e->heureDebut,0,5) }}—{{ substr($e->heureFin,0,5) }}<br>
+                                👤 {{ $e->professeur?->user?->prenom ?? '' }} {{ $e->professeur?->user?->nom ?? '' }}<br>
+                                📍 {{ $e->salle?->nom ?? '—' }}
+                                <span style="background:rgba(255,255,255,.25);padding:0 4px;border-radius:3px;font-size:.6rem;">{{ $e->typeCours }}</span>
+                            </div>
+                        </div>
+                        @endforeach
+                    </td>
+                    @endforeach
+                </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- Dernières absences --}}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clipboard-x me-2"></i>Mes dernières absences</span>
+        <a href="{{ route('etudiant.absences') }}" class="btn btn-sm btn-outline-primary">
+            Voir tout <i class="bi bi-arrow-right ms-1"></i>
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Date</th>
+                    <th>Matière</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse($dernieresAbsences as $absence)
+            <tr>
+                <td><small>{{ \Carbon\Carbon::parse($absence->date)->format('d/m/Y') }}</small></td>
+                <td><strong>{{ $absence->cours?->matiere?->nomMatiere ?? '—' }}</strong></td>
+                <td>
+                    @php $colors=['present'=>'success','absent'=>'danger','retard'=>'warning','justifie'=>'info']; @endphp
+                    <span class="badge bg-{{ $colors[$absence->statut]??'secondary' }}">
+                        {{ ucfirst($absence->statut) }}
+                    </span>
+                </td>
+            </tr>
+            @empty
+            <tr>
+                <td colspan="3" class="text-center text-muted py-3">
+                    <i class="bi bi-check-circle text-success me-1"></i>Aucune absence enregistrée.
+                </td>
+            </tr>
+            @endforelse
+            </tbody>
+        </table>
     </div>
 </div>
 @endsection
