@@ -63,7 +63,7 @@
         .sidebar-footer .user-name { font-size: .82rem; font-weight: 600; color: #fff; }
         .sidebar-footer .user-role { font-size: .72rem; color: var(--sidebar-accent); }
 
-        /* ===== MAIN ===== */
+        /* ===== MAIN CONTAINER ===== */
         .main-content {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
@@ -80,11 +80,9 @@
         .topbar h4 { margin: 0; font-size: 1.05rem; font-weight: 700; color: #0f172a; }
         .page-content { padding: 1.6rem 1.8rem; flex: 1; }
 
-        /* ===== CARDS ===== */
+        /* ===== CARDS & UI ===== */
         .card { border: none; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
         .card-header { border-radius: 12px 12px 0 0 !important; font-weight: 600; padding: .9rem 1.2rem; }
-
-        /* ===== STAT CARDS ===== */
         .stat-card {
             border-radius: 14px; padding: 1.4rem; color: #fff;
             box-shadow: 0 2px 10px rgba(0,0,0,.12);
@@ -92,31 +90,16 @@
         .stat-value { font-size: 2rem; font-weight: 800; line-height: 1; }
         .stat-label { font-size: .8rem; opacity: .85; margin-top: .3rem; }
         .stat-icon { font-size: 2.5rem; opacity: .25; }
-
-        /* ===== ALERTS ===== */
         .alert { border-radius: 10px; border: none; }
-
-        /* ===== BADGES ===== */
         .badge { font-weight: 600; }
-
-        /* ===== TABLES ===== */
         .table { margin: 0; }
         .table th { font-weight: 600; font-size: .82rem; color: #64748b; border-bottom-width: 1px; }
         .table td { vertical-align: middle; font-size: .88rem; }
-
-        /* ===== BUTTONS ===== */
         .btn { border-radius: 8px; font-weight: 500; }
         .btn-sm { font-size: .78rem; }
-
-        /* ===== FORMS ===== */
         .form-control, .form-select { border-radius: 8px; border-color: #e2e8f0; }
         .form-control:focus, .form-select:focus { border-color: #00D9C0; box-shadow: 0 0 0 3px rgba(0,217,192,.15); }
         .form-label { font-size: .85rem; }
-
-        /* ===== BREADCRUMB ===== */
-        .breadcrumb { background: none; padding: 0; margin: 0; }
-        .breadcrumb-item a { color: #00D9C0; text-decoration: none; }
-        .breadcrumb-item.active { color: #64748b; }
     </style>
 </head>
 <body>
@@ -124,120 +107,117 @@
 <div class="sidebar">
     <div class="sidebar-brand">
         <div class="brand-title">UADB - SATIC</div>
-        <div class="brand-sub">Gestion des Absences & EDT</div>
+        <div class="brand-sub">Gestion des Absences</div>
     </div>
 
     <nav>
-        {{-- ===== LIENS COMMUNS ===== --}}
+        {{-- ===== ZONE GLOBALE ===== --}}
         <div class="nav-section">Général</div>
-        <li class="nav-link {{ request()->is('/') ? 'active' : '' }}"
-            onclick="window.location='{{ url('/') }}'" style="cursor:pointer;list-style:none;">
+        <a class="nav-link {{ request()->is('/') ? 'active' : '' }}" href="{{ url('/') }}">
             <i class="bi bi-house"></i> Accueil
-        </li>
+        </a>
 
-        {{-- ===== ADMIN ===== --}}
+        {{-- ===== ACCÈS ADMINISTRATEUR ===== --}}
         @if(auth()->user()->role === 'administrateur')
         <div class="nav-section">Administration</div>
-        <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}"
-           href="{{ route('admin.dashboard') }}">
-            <i class="bi bi-speedometer2"></i> Tableau de bord</a>
-        <a class="nav-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}"
-           href="{{ route('admin.users.index') }}">
-            <i class="bi bi-people"></i> Utilisateurs</a>
-        <a class="nav-link {{ request()->routeIs('admin.etudiants-filiere*') ? 'active' : '' }}"
-           href="{{ route('admin.etudiants-filiere.index') }}">
-            <i class="bi bi-mortarboard"></i> Étudiants par filière</a>
-        <a class="nav-link {{ request()->routeIs('admin.departements*') ? 'active' : '' }}"
-           href="{{ route('admin.departements.index') }}">
-            <i class="bi bi-building"></i> Départements & Structure</a>
-        <a class="nav-link {{ request()->routeIs('admin.classes*') ? 'active' : '' }}"
-           href="{{ route('admin.classes.index') }}">
-            <i class="bi bi-grid"></i> Classes</a>
-        <a class="nav-link {{ request()->routeIs('admin.matieres*') ? 'active' : '' }}"
-           href="{{ route('admin.matieres.index') }}">
-            <i class="bi bi-journal-text"></i> Matières</a>
-        <a class="nav-link {{ request()->routeIs('admin.salles*') ? 'active' : '' }}"
-           href="{{ route('admin.salles.index') }}">
-            <i class="bi bi-geo-alt"></i> Salles</a>
+        <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">
+            <i class="bi bi-speedometer2"></i> Tableau de bord
+        </a>
+        <a class="nav-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">
+            <i class="bi bi-people"></i> Utilisateurs
+        </a>
+        <a class="nav-link {{ request()->routeIs('admin.etudiants-filiere*') ? 'active' : '' }}" href="{{ route('admin.etudiants-filiere.index') }}">
+            <i class="bi bi-mortarboard"></i> Étudiants par filière
+        </a>
+        <a class="nav-link {{ request()->routeIs('admin.departements*') ? 'active' : '' }}" href="{{ route('admin.departements.index') }}">
+            <i class="bi bi-building"></i> Départements
+        </a>
+        <a class="nav-link {{ request()->routeIs('admin.classes*') ? 'active' : '' }}" href="{{ route('admin.classes.index') }}">
+            <i class="bi bi-grid"></i> Classes
+        </a>
+        <a class="nav-link {{ request()->routeIs('admin.matieres*') ? 'active' : '' }}" href="{{ route('admin.matieres.index') }}">
+            <i class="bi bi-journal-text"></i> Matières
+        </a>
+        <a class="nav-link {{ request()->routeIs('admin.salles*') ? 'active' : '' }}" href="{{ route('admin.salles.index') }}">
+            <i class="bi bi-geo-alt"></i> Salles
+        </a>
 
-        <div class="nav-section">Cours</div>
-        <a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}"
-           href="{{ route('cours.index') }}">
-            <i class="bi bi-book"></i> Gestion des cours</a>
+        <div class="nav-section">Planification</div>
+        <a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}" href="{{ route('cours.index') }}">
+            <i class="bi bi-book"></i> Gestion des cours
+        </a>
 
-        <div class="nav-section">Présences</div>
-        <a class="nav-link {{ request()->routeIs('absences.index') ? 'active' : '' }}"
-           href="{{ route('absences.index') }}">
-            <i class="bi bi-clipboard-x"></i> Toutes les absences</a>
-        <a class="nav-link {{ request()->routeIs('absences.rapport') ? 'active' : '' }}"
-           href="{{ route('absences.rapport') }}">
-            <i class="bi bi-file-pdf"></i> Rapport PDF</a>
-        <a class="nav-link {{ request()->routeIs('absences.statistiques') ? 'active' : '' }}"
-           href="{{ route('absences.statistiques') }}">
-            <i class="bi bi-bar-chart"></i> Statistiques</a>
+        <div class="nav-section">Suivi Absences</div>
+        <a class="nav-link {{ request()->routeIs('absences.index') ? 'active' : '' }}" href="{{ route('absences.index') }}">
+            <i class="bi bi-clipboard-x"></i> Toutes les absences
+        </a>
+        <a class="nav-link {{ request()->routeIs('absences.rapport') ? 'active' : '' }}" href="{{ route('absences.rapport') }}">
+            <i class="bi bi-file-pdf"></i> Rapport PDF
+        </a>
+        <a class="nav-link {{ request()->routeIs('absences.statistiques') ? 'active' : '' }}" href="{{ route('absences.statistiques') }}">
+            <i class="bi bi-bar-chart"></i> Statistiques
+        </a>
 
         <div class="nav-section">Biométrie</div>
-        <a class="nav-link {{ request()->routeIs('biometrie*') ? 'active' : '' }}"
-           href="{{ route('biometrie.index') }}">
-            <i class="bi bi-camera"></i> Reconnaissance faciale</a>
+        <a class="nav-link {{ request()->routeIs('biometrie*') ? 'active' : '' }}" href="{{ route('biometrie.index') }}">
+            <i class="bi bi-camera"></i> Reconnaissance faciale
+        </a>
         @endif
 
-        {{-- ===== PROFESSEUR ===== --}}
+        {{-- ===== ACCÈS PROFESSEUR ===== --}}
         @if(auth()->user()->role === 'professeur')
         <div class="nav-section">Espace Enseignant</div>
-        <a class="nav-link {{ request()->routeIs('professeur.dashboard') ? 'active' : '' }}"
-           href="{{ route('professeur.dashboard') }}">
-            <i class="bi bi-calendar-week"></i> Mon emploi du temps</a>
-        <a class="nav-link {{ request()->routeIs('professeur.etudiants') ? 'active' : '' }}"
-           href="{{ route('professeur.etudiants') }}">
-            <i class="bi bi-people"></i> Mes étudiants</a>
-        <a class="nav-link {{ request()->routeIs('professeur.absences') ? 'active' : '' }}"
-           href="{{ route('professeur.absences') }}">
-            <i class="bi bi-clipboard-x"></i> Absences de mes classes</a>
+        <a class="nav-link {{ request()->routeIs('professeur.dashboard') ? 'active' : '' }}" href="{{ route('professeur.dashboard') }}">
+            <i class="bi bi-calendar-week"></i> Emploi du temps
+        </a>
+        <a class="nav-link {{ request()->routeIs('professeur.etudiants') ? 'active' : '' }}" href="{{ route('professeur.etudiants') }}">
+            <i class="bi bi-people"></i> Mes étudiants
+        </a>
+        <a class="nav-link {{ request()->routeIs('professeur.absences') ? 'active' : '' }}" href="{{ route('professeur.absences') }}">
+            <i class="bi bi-clipboard-x"></i> Absences des classes
+        </a>
 
-        <div class="nav-section">Cours & Pointage</div>
-        <a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}"
-           href="{{ route('cours.index') }}">
-            <i class="bi bi-book"></i> Mes cours</a>
-        <a class="nav-link {{ request()->routeIs('biometrie*') ? 'active' : '' }}"
-           href="{{ route('biometrie.index') }}">
-            <i class="bi bi-camera-video"></i> Lancer reconnaissance faciale</a>
+        <div class="nav-section">Cours & Suivi</div>
+        <a class="nav-link {{ request()->routeIs('cours*') ? 'active' : '' }}" href="{{ route('cours.index') }}">
+            <i class="bi bi-book"></i> Mes cours
+        </a>
+        <a class="nav-link {{ request()->routeIs('biometrie*') ? 'active' : '' }}" href="{{ route('biometrie.index') }}">
+            <i class="bi bi-camera-video"></i> Scanner facial
+        </a>
         @endif
 
-        {{-- ===== ÉTUDIANT ===== --}}
+        {{-- ===== ACCÈS ÉTUDIANT ===== --}}
         @if(auth()->user()->role === 'etudiant')
-        <div class="nav-section">Mon espace</div>
-        <a class="nav-link {{ request()->routeIs('etudiant.dashboard') ? 'active' : '' }}"
-           href="{{ route('etudiant.dashboard') }}">
-            <i class="bi bi-calendar-week"></i> Mon emploi du temps</a>
-        <a class="nav-link {{ request()->routeIs('etudiant.absences') ? 'active' : '' }}"
-           href="{{ route('etudiant.absences') }}">
-            <i class="bi bi-clipboard-x"></i> Mes absences</a>
+        <div class="nav-section">Espace Étudiant</div>
+        <a class="nav-link {{ request()->routeIs('etudiant.dashboard') ? 'active' : '' }}" href="{{ route('etudiant.dashboard') }}">
+            <i class="bi bi-calendar-week"></i> Mon emploi du temps
+        </a>
+        <a class="nav-link {{ request()->routeIs('etudiant.absences') ? 'active' : '' }}" href="{{ route('etudiant.absences') }}">
+            <i class="bi bi-clipboard-x"></i> Mes absences
+        </a>
         @endif
 
-        {{-- ===== CHEF DE SERVICE ===== --}}
+        {{-- ===== ACCÈS CHEF DE SERVICE ===== --}}
         @if(auth()->user()->role === 'chef_service')
-        <div class="nav-section">Chef de Service</div>
-        <a class="nav-link {{ request()->routeIs('chef.dashboard') ? 'active' : '' }}"
-           href="{{ route('chef.dashboard') }}">
-            <i class="bi bi-speedometer2"></i> Dashboard Chef</a>
-        <a class="nav-link {{ request()->routeIs('chef.edt*') ? 'active' : '' }}"
-           href="{{ route('chef.edt.index') }}">
-            <i class="bi bi-calendar-week"></i> Emplois du temps</a>
-        <a class="nav-link {{ request()->routeIs('chef.salles') ? 'active' : '' }}"
-           href="{{ route('chef.salles') }}">
-            <i class="bi bi-grid"></i> Disponibilité salles</a>
-        <a class="nav-link {{ request()->routeIs('chef.rapport') ? 'active' : '' }}"
-           href="{{ route('chef.rapport') }}">
-            <i class="bi bi-file-text"></i> Rapport Global</a>
-        <a class="nav-link {{ request()->routeIs('chef.alertes') ? 'active' : '' }}"
-           href="{{ route('chef.alertes') }}">
-            <i class="bi bi-bell"></i> Alertes Absences</a>
+        <div class="nav-section">Direction</div>
+        <a class="nav-link {{ request()->routeIs('chef.dashboard') ? 'active' : '' }}" href="{{ route('chef.dashboard') }}">
+            <i class="bi bi-speedometer2"></i> Dashboard Directeur
+        </a>
+        <a class="nav-link {{ request()->routeIs('chef.edt*') ? 'active' : '' }}" href="{{ route('chef.edt.index') }}">
+            <i class="bi bi-calendar-week"></i> Emplois du temps
+        </a>
+        <a class="nav-link {{ request()->routeIs('chef.salles') ? 'active' : '' }}" href="{{ route('chef.salles') }}">
+            <i class="bi bi-grid"></i> Statut des salles
+        </a>
+        <a class="nav-link {{ request()->routeIs('chef.rapport') ? 'active' : '' }}" href="{{ route('chef.rapport') }}">
+            <i class="bi bi-file-text"></i> Rapport Global
+        </a>
+        <a class="nav-link {{ request()->routeIs('chef.alertes') ? 'active' : '' }}" href="{{ route('chef.alertes') }}">
+            <i class="bi bi-bell"></i> Alertes Seuil
+        </a>
         @endif
-
     </nav>
 
-    {{-- Footer sidebar --}}
     <div class="sidebar-footer">
         <div class="d-flex align-items-center gap-2 mb-2">
             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -264,8 +244,7 @@
         <h4>@yield('page-title', 'Tableau de bord')</h4>
         <div class="d-flex align-items-center gap-3">
             <span class="text-muted small">{{ now()->format('d/m/Y H:i') }}</span>
-            <span class="badge rounded-pill"
-                  style="background:rgba(0,217,192,.15);color:#00D9C0;">
+            <span class="badge rounded-pill" style="background:rgba(0,217,192,.15);color:#00D9C0;">
                 {{ ucfirst(str_replace('_',' ', auth()->user()->role)) }}
             </span>
         </div>

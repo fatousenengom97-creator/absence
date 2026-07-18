@@ -2,20 +2,29 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{DonneesBiometriques, Etudiant, Absence, Cours};
+use App\Models\DonneesBiometriques;
+use App\Models\Etudiant;
+use App\Models\Absence;
+use App\Models\Cours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
+use GuzzleHttp\Client;
 
 class BiometrieController extends Controller
 {
-    /* ---- Page d'enregistrement biométrique ---- */
+    /**
+     * Page d'enregistrement biométrique d'un étudiant.
+     */
     public function enregistrer(Etudiant $etudiant)
     {
         $biometrie = $etudiant->donneesBiometriques()->latest()->first();
         return view('biometrie.enregistrer', compact('etudiant', 'biometrie'));
     }
 
-    /* ---- Sauvegarder le vecteur facial ---- */
+    /**
+     * Sauvegarder le vecteur facial généré et la photo témoin.
+     */
     public function sauvegarder(Request $request, Etudiant $etudiant)
     {
         $request->validate([
@@ -36,10 +45,12 @@ class BiometrieController extends Controller
             ]
         );
 
-        return response()->json(['success' => true, 'message' => 'Données biométriques enregistrées.']);
+        return response()->json(['success' => true, 'message' => 'Données biométriques enregistrées avec succès.']);
     }
 
-    /* ---- Page de pointage facial ---- */
+    /**
+     * Page d'émargement et de pointage facial en temps réel pour un cours.
+     */
     public function pointage(Cours $cours)
     {
         $cours->load(['matiere', 'classe', 'salle']);
@@ -51,7 +62,9 @@ class BiometrieController extends Controller
         return view('biometrie.pointage', compact('cours', 'etudiants'));
     }
 
-    /* ---- Traitement du pointage (appelé par le JS) ---- */
+    /**
+     * Traitement manuel ou via script JS du pointage d'un étudiant spécifique.
+     */
     public function traiterPointage(Request $request, Cours $cours)
     {
         $request->validate([
@@ -60,13 +73,14 @@ class BiometrieController extends Controller
         ]);
 
         $seuilConfiance = 0.75;
+        $dateCours = Carbon::parse($cours->heureDebut)->toDateString();
 
         if ($request->confiance >= $seuilConfiance) {
             Absence::updateOrCreate(
                 [
                     'etudiant_id' => $request->etudiant_id,
                     'idCours'     => $cours->idCours,
-                    'date'        => today(),
+                    'date'        => $dateCours,
                 ],
                 [
                     'statut'          => 'present',
@@ -91,50 +105,52 @@ class BiometrieController extends Controller
         ], 422);
     }
 
-    /* ---- Vérification du visage via serveur Python ---- */
+    /**
+     * Transmission du flux vidéo au serveur de reconnaissance Python.
+     */
     public function verifierVisage(Request $request, Cours $cours)
     {
         $request->validate(['image' => 'required|string']);
+        $dateCours = Carbon::parse($cours->heureDebut)->toDateString();
 
         try {
-            // Envoyer l'image au serveur Python sur port 8080
-            $client = new \GuzzleHttp\Client(['timeout' => 10]);
+            // Requête HTTP vers l'API d'identification Python
+            $client = new Client(['timeout' => 10]);
             $response = $client->post('http://127.0.0.1:8080/api/identifier', [
                 'json' => ['image' => $request->image]
             ]);
 
             $resultat = json_decode($response->getBody(), true);
 
-            if ($resultat['status'] === 'success') {
+            if (isset($resultat['status']) && $resultat['status'] === 'success') {
                 $etudiantId = $resultat['etudiant_id'];
                 $confiance  = $resultat['confiance'];
 
-                // Vérifier que l'étudiant est inscrit dans la classe du cours
+                // Vérifier l'appartenance de l'étudiant à la classe concernée
                 $etudiant = Etudiant::with('user')
                     ->where('id', $etudiantId)
                     ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
                     ->first();
 
                 if (!$etudiant) {
-                    // Étudiant reconnu mais pas dans cette classe
                     $etudiantAutre = Etudiant::with('user')->find($etudiantId);
                     return response()->json([
-                        'status'  => 'intruder',
-                        'message' => 'Étudiant non inscrit dans cette classe !',
+                        'status'    => 'intruder',
+                        'message'   => 'Étudiant non inscrit dans cette classe !',
                         'confiance' => $confiance,
-                        'etudiant' => [
+                        'etudiant'  => [
                             'prenom' => $etudiantAutre?->user?->prenom ?? '—',
                             'nom'    => $etudiantAutre?->user?->nom ?? '—',
                         ]
                     ]);
                 }
 
-                // Marquer présent
+                // Validation de présence
                 Absence::updateOrCreate(
                     [
                         'etudiant_id' => $etudiant->id,
                         'idCours'     => $cours->idCours,
-                        'date'        => today(),
+                        'date'        => $dateCours,
                     ],
                     [
                         'statut'          => 'present',
@@ -159,43 +175,45 @@ class BiometrieController extends Controller
                     ]
                 ]);
 
-            } elseif ($resultat['status'] === 'inconnu') {
+            } elseif (isset($resultat['status']) && $resultat['status'] === 'inconnu') {
                 return response()->json([
                     'status'  => 'intruder',
                     'message' => 'Visage non reconnu',
                 ]);
-
-            } else {
-                return response()->json([
-                    'status'  => 'no_match',
-                    'message' => $resultat['message'] ?? 'Aucun visage détecté',
-                ]);
             }
 
+            return response()->json([
+                'status'  => 'no_match',
+                'message' => $resultat['message'] ?? 'Aucun visage détecté',
+            ]);
+
         } catch (\Exception $e) {
-            // Si serveur Python indisponible → simulation
+            // Fallback automatique sur le système de simulation si le serveur Python est éteint
             return $this->simulerPointage($cours);
         }
     }
 
-    /* ---- Simulation quand Python n'est pas disponible ---- */
+    /**
+     * Simulation interne du mécanisme de détection faciale (si Python hors-ligne).
+     */
     private function simulerPointage(Cours $cours)
     {
-        $dejaPonites = Absence::where('idCours', $cours->idCours)
+        $dateCours = Carbon::parse($cours->heureDebut)->toDateString();
+
+        $dejaPointes = Absence::where('idCours', $cours->idCours)
             ->where('statut', 'present')
             ->pluck('etudiant_id');
 
         $etudiant = Etudiant::with(['user', 'donneesBiometriques'])
             ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
-            ->whereNotIn('id', $dejaPonites)
+            ->whereNotIn('id', $dejaPointes)
             ->whereHas('donneesBiometriques')
             ->first();
 
         if (!$etudiant) {
-            // Essayer sans filtre biométrie
             $etudiant = Etudiant::with('user')
                 ->whereHas('inscriptions', fn($q) => $q->where('idClasse', $cours->idClasse))
-                ->whereNotIn('id', $dejaPonites)
+                ->whereNotIn('id', $dejaPointes)
                 ->first();
         }
 
@@ -210,7 +228,7 @@ class BiometrieController extends Controller
             [
                 'etudiant_id' => $etudiant->id,
                 'idCours'     => $cours->idCours,
-                'date'        => today(),
+                'date'        => $dateCours,
             ],
             [
                 'statut'          => 'present',
@@ -235,7 +253,9 @@ class BiometrieController extends Controller
         ]);
     }
 
-    /* ---- Liste des étudiants avec biométrie ---- */
+    /**
+     * Liste globale des étudiants disposant de données biométriques.
+     */
     public function index()
     {
         $etudiants = Etudiant::with([

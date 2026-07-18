@@ -8,6 +8,7 @@ use App\Models\Matiere;
 use App\Models\Professeur;
 use App\Models\Salle;
 use App\Models\EmploiDuTemps; 
+use App\Models\Etudiant;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -27,14 +28,12 @@ class ChefServiceController extends Controller
     }
 
     /**
-     * CORRECTION : Nom de méthode corrigé en "emploiDuTemps" pour correspondre à ta route.
      * Affiche l'écran d'accueil de gestion des emplois du temps (Liste des classes).
      */
     public function emploiDuTemps()
     {
         $classes = Classe::with('filiere')->orderBy('nom')->get();
         
-        // On renvoie vers ta vue principale de gestion des EDT
         return view('chef.emploi-du-temps', compact('classes'));
     }
 
@@ -43,25 +42,21 @@ class ChefServiceController extends Controller
      */
     public function edtClasse($classeId)
     {
-        // 1. On récupère la classe avec sa clé primaire spécifique
         $classe = Classe::where('idClasse', $classeId)->firstOrFail();
 
-        // 2. Récupère les créneaux de cette classe
-        $creneaux = $classe->creneaux()
+        // Récupère les créneaux de cette classe via la clé idClasse
+        $creneaux = EmploiDuTemps::where('idClasse', $classeId)
             ->with(['matiere', 'professeur.user', 'salle'])
             ->get();
 
-        // 3. Regroupement par jour pour l'affichage chronologique sous forme de calendrier
         $edt = $creneaux->groupBy('jour');
 
-        // 4. Récupère les ressources nécessaires pour le formulaire d'ajout rapide
         $matieres = Matiere::all();
         $professeurs = Professeur::with('user')->get();
         $salles = Salle::all();
 
-        // 5. Définition des plages de l'emploi du temps
         $jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-        $heures = range(8, 19); // Génère les heures de 8h à 19h
+        $heures = range(8, 19); 
 
         return view('chef.edt-classe', compact(
             'classe', 
@@ -80,10 +75,8 @@ class ChefServiceController extends Controller
      */
     public function storeEDT(Request $request, $classeId)
     {
-        // On valide que la classe existe bien avant toute action
         $classe = Classe::where('idClasse', $classeId)->firstOrFail();
 
-        // Validation stricte des données du formulaire
         $request->validate([
             'idMatiere' => 'required|exists:matieres,idMatiere',
             'professeur_id' => 'required|exists:professeurs,id',
@@ -93,16 +86,16 @@ class ChefServiceController extends Controller
             'heureFin' => 'required|after:heureDebut',
         ]);
 
-        // Insertion sécurisée via la relation définie sur le modèle Classe
-        $classe->creneaux()->create([
+        EmploiDuTemps::create([
+            'idClasse' => $classe->idClasse,
             'idMatiere' => $request->idMatiere,
             'professeur_id' => $request->professeur_id,
             'idSalle' => $request->idSalle,
             'jour' => $request->jour,
             'heureDebut' => $request->heureDebut,
             'heureFin' => $request->heureFin,
-            'typeCours' => $request->input('typeCours', 'Cours'),
-            'couleur' => $request->input('couleur', '#3788d8'),
+            'typeCours' => $request->input('typeCours', 'CM'),
+            'couleur' => $request->input('couleur', '#3B82F6'),
             'actif' => true,
         ]);
 
@@ -110,12 +103,12 @@ class ChefServiceController extends Controller
     }
 
     /**
-     * Supprime un créneau d'emploi du temps existant.
+     * Supprime un créneau d'emploi du temps existant via sa clé primaire idEDT.
      */
-    public function destroyEDT($id)
+    public function destroyEDT($idEDT)
     {
-        // Recherche par l'identifiant unique de la table des emplois du temps
-        $creneau = EmploiDuTemps::findOrFail($id);
+        // Recherche par l'identifiant unique personnalisé idEDT
+        $creneau = EmploiDuTemps::where('idEDT', $idEDT)->firstOrFail();
         $creneau->delete();
 
         return redirect()->back()->with('success', 'Créneau supprimé avec succès !');
@@ -126,7 +119,6 @@ class ChefServiceController extends Controller
      */
     public function salles()
     {
-        // 1. Traduction du jour de la semaine Carbon vers le format de ta BDD
         $joursTraduits = [
             'Monday'    => 'Lundi',
             'Tuesday'   => 'Mardi',
@@ -140,10 +132,8 @@ class ChefServiceController extends Controller
         $nomJourAnglais = Carbon::now()->format('l'); 
         $jourActuel = $joursTraduits[$nomJourAnglais] ?? 'Lundi';
 
-        // 2. On récupère toutes les structures de salles
         $salles = Salle::all();
 
-        // 3. Récupération optimisée du planning lié au jour J
         $edtJour = EmploiDuTemps::with(['matiere', 'professeur.user', 'classe'])
             ->where('jour', $jourActuel)
             ->where('actif', true)
@@ -154,57 +144,70 @@ class ChefServiceController extends Controller
     }
 
     /**
-     * Calcule et génère le rapport global d'absentéisme par classe (Visualisation HTML ou Export PDF).
+     * Calcule et génère le rapport global d'absentéisme par classe.
      */
     public function rapportGlobal(Request $request)
     {
-        // 1. Récupérer toutes les classes avec leurs relations indispensables
         $classesRaw = Classe::with(['filiere', 'niveau'])->get();
 
         $classes = $classesRaw->map(function ($classe) {
-            // Extraction des fiches de présences/absences indexées sur cette classe via les séances de cours
             $pointages = Absence::whereHas('cours', function ($query) use ($classe) {
                 $query->where('idClasse', $classe->idClasse);
             })->get();
 
             $total = $pointages->count();
-            
-            // Compteurs dynamiques selon le statut
             $presents = $pointages->where('statut', 'present')->count();
             $absents  = $pointages->where('statut', 'absent')->count();
 
-            // Calcul précis du taux d'absentéisme (gestion division par zéro incluse)
             $taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
 
-            // Injection à la volée des attributs calculés pour l'affichage de ta vue Blade
-            $classe->total     = $total;
+            $classe->total = $total;
             $classe->presents = $presents;
             $classe->absents  = $absents;
-            $classe->taux     = $taux;
+            $classe->taux = $taux;
 
             return $classe;
         });
 
-        // 2. Traitement d'exportation vers DomPDF si demandé dans l'URL (?format=pdf)
-        if ($request->get('format') === 'pdf') {
-            $pdf = Pdf::loadView('chef.rapport_pdf', compact('classes'));
-            return $pdf->stream('Rapport_Global_Absences_' . now()->format('d-m-Y') . '.pdf');
-        }
-
         return view('chef.rapport', compact('classes'));
     }
+
+    /**
+     * Génère l'export PDF du rapport global pour le Chef de Service.
+     */
+    public function genererRapportPDF()
+    {
+        $classesRaw = Classe::with(['filiere', 'niveau'])->get();
+
+        $classes = $classesRaw->map(function ($classe) {
+            $pointages = Absence::whereHas('cours', function ($query) use ($classe) {
+                $query->where('idClasse', $classe->idClasse);
+            })->get();
+
+            $total = $pointages->count();
+            $absents = $pointages->where('statut', 'absent')->count();
+            $classe->taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
+            $classe->absents = $absents;
+
+            return $classe;
+        });
+
+        $pdf = Pdf::loadView('chef.rapport_pdf', compact('classes'));
+        return $pdf->stream('Rapport_Global_SATIC_' . now()->format('d-m-Y') . '.pdf');
+    }
+
+    /**
+     * Alerte automatique quand un étudiant dépasse le seuil d'absences autorisé (ex: >= 3).
+     */
 public function alertes()
 {
-    $absencesModifiees = \App\Models\Absence::with([
-        'etudiant.user',
-        'cours.matiere',
-        'cours.classe'
-    ])
-    ->whereIn('statut', ['justifie', 'retard', 'present'])
-    ->orderByDesc('updated_at')
-    ->paginate(20);
+    $etudiantsEnAlerte = Etudiant::with(['inscriptionActuelle.classe.filiere', 'user'])
+        ->withCount(['absences' => function ($query) {
+            $query->where('statut', 'absent');
+        }])
+        ->having('absences_count', '>=', 5) // seuil : 5 absences ou plus
+        ->get();
 
-    return view('chef.alertes', compact('absencesModifiees'));
+    return view('admin.etudiants_filieres.alertes', compact('etudiantsEnAlerte'));
 }
-
 }

@@ -26,4 +26,16 @@ class Absence extends Model
     {
         return $this->belongsTo(Cours::class, 'idCours', 'idCours');
     }
+    public function modifierAbsence(Request $request, Absence $absence)
+{
+    $request->validate([
+        'statut' => 'required|in:present,absent,retard,justifie',
+    ]);
+
+    $absence->update([
+        'statut' => $request->statut,
+    ]);
+
+    return redirect()->back()->with('success', 'Statut de l\'absence mis à jour avec succès.');
+}
 }

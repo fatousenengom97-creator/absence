@@ -2,12 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{Cours, Matiere, Classe, Salle, Absence, Etudiant};
+use App\Models\Cours;
+use App\Models\Matiere;
+use App\Models\Classe;
+use App\Models\Salle;
+use App\Models\Absence;
+use App\Models\Etudiant;
+use App\Models\Professeur;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
 class CoursController extends Controller
 {
+    /**
+     * Liste des cours (filtrée pour les professeurs, globale pour les admins).
+     */
     public function index()
     {
         $professeur = auth()->user()->professeur;
@@ -28,15 +37,22 @@ class CoursController extends Controller
         return view('cours.index', compact('cours'));
     }
 
+    /**
+     * Formulaire de création d'un cours.
+     */
     public function create()
     {
         $matieres    = Matiere::orderBy('nomMatiere')->get();
         $classes     = Classe::with(['filiere', 'niveau'])->orderBy('nom')->get();
         $salles      = Salle::orderBy('nom')->get();
-        $professeurs = \App\Models\Professeur::with('user')->get();
+        $professeurs = Professeur::with('user')->get();
+        
         return view('cours.create', compact('matieres', 'classes', 'salles', 'professeurs'));
     }
 
+    /**
+     * Enregistrement d'un nouveau cours avec vérification des conflits.
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -54,8 +70,8 @@ class CoursController extends Controller
         $heureFin   = $data['date'] . ' ' . $data['heureFin'] . ':00';
 
         // Vérifier que la salle est disponible
-        $salle = \App\Models\Salle::find($data['idSalle']);
-        if ($salle->estOccupee($heureDebut, $heureFin)) {
+        $salle = Salle::find($data['idSalle']);
+        if ($salle && $salle->estOccupee($heureDebut, $heureFin)) {
             return back()
                 ->withInput()
                 ->withErrors(['idSalle' => 'Cette salle est déjà occupée sur ce créneau horaire.']);
@@ -82,27 +98,37 @@ class CoursController extends Controller
             'typeCours'     => $data['typeCours'],
             'heureDebut'    => $heureDebut,
             'heureFin'      => $heureFin,
-            'jour'          => \Carbon\Carbon::parse($data['date'])->locale('fr')->dayName,
+            'jour'          => Carbon::parse($data['date'])->locale('fr')->dayName,
             'statut'        => 'planifie',
         ]);
 
         return redirect()->route('cours.index')->with('success', 'Cours créé et attribué avec succès.');
     }   
 
+    /**
+     * Détails d'un cours et de ses présences.
+     */
     public function show(Cours $cours)
     {
         $cours->load(['matiere', 'classe', 'salle', 'absences.etudiant.user']);
         return view('cours.show', compact('cours'));
     }
 
+    /**
+     * Formulaire d'édition d'un cours.
+     */
     public function edit(Cours $cours)
     {
         $matieres = Matiere::orderBy('nomMatiere')->get();
         $classes  = Classe::orderBy('nom')->get();
         $salles   = Salle::orderBy('nom')->get();
+        
         return view('cours.edit', compact('cours', 'matieres', 'classes', 'salles'));
     }
 
+    /**
+     * Mise à jour d'un cours.
+     */
     public function update(Request $request, Cours $cours)
     {
         $data = $request->validate([
@@ -131,39 +157,47 @@ class CoursController extends Controller
         return redirect()->route('cours.index')->with('success', 'Cours mis à jour.');
     }
 
+    /**
+     * Suppression d'un cours.
+     */
     public function destroy(Cours $cours)
     {
         $cours->delete();
         return redirect()->route('cours.index')->with('success', 'Cours supprimé.');
     }
 
-    /* ---- Démarrer un cours ---- */
+    /**
+     * Démarrer le cours et initialiser la feuille d'absences (statut absent par défaut).
+     */
     public function demarrer(Cours $cours)
     {
         $cours->update(['statut' => 'en_cours']);
 
-        // Créer automatiquement les absences pour tous les étudiants de la classe
+        // Récupère les étudiants de la classe via la table d'inscriptions
         $etudiants = Etudiant::whereHas('inscriptions', fn($q) =>
             $q->where('idClasse', $cours->idClasse)
         )->get();
+
+        $dateCours = Carbon::parse($cours->heureDebut)->toDateString();
 
         foreach ($etudiants as $etudiant) {
             Absence::updateOrCreate(
                 [
                     'etudiant_id' => $etudiant->id,
                     'idCours'     => $cours->idCours,
-                    'date'        => today(),
+                    'date'        => $dateCours,
                 ],
-                ['statut' => 'absent'] // par défaut absent, le pointage facial les marquera présents
+                ['statut' => 'absent'] // Le pointage par reconnaissance faciale écrasera ce statut par 'present'
             );
         }
 
-        // CORRECTION : Redirection vers la route biométrique avec le bon nom et l'id du cours en paramètre
         return redirect()->route('biometrie.pointage', ['cours' => $cours->idCours])
             ->with('success', 'Cours démarré — pointage facial lancé.');
     }
 
-    /* ---- Terminer un cours ---- */
+    /**
+     * Terminer un cours en cours.
+     */
     public function terminer(Cours $cours)
     {
         $cours->update(['statut' => 'termine']);
