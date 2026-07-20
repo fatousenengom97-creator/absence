@@ -100,6 +100,7 @@ Route::middleware(['auth', 'role:professeur'])
     Route::get('/dashboard', [ProfesseurController::class, 'dashboard'])->name('dashboard');
     
     Route::get('/mon-emploi-du-temps', [ProfesseurController::class, 'monEmploiDuTemps'])->name('emploi-du-temps');
+    Route::post('/edt/{edt}/demarrer', [ProfesseurController::class, 'demarrerDepuisEDT'])->name('edt.demarrer');
     Route::get('/etudiants', [ProfesseurController::class, 'mesEtudiants'])->name('etudiants');
     
     Route::get('/absences', [ProfesseurController::class, 'absencesClasse'])->name('absences');

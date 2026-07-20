@@ -20,24 +20,26 @@ class ChefServiceController extends Controller
     /**
      * Affiche le tableau de bord (dashboard) du Chef de Service.
      */
- public function dashboard()
-    {
-        // 1. Statistiques des cartes du haut
-        $totalClasses = Classe::count();
-        $totalProfesseurs = \App\Models\User::where('role', 'professeur')->count();
-        $totalEDT = Cours::count();
+public function dashboard()
+{
+    $totalClasses = Classe::count();
+    $totalProfesseurs = Professeur::count();
+    $totalEDT = EmploiDuTemps::count();
 
-        // 2. Récupération de TOUS les cours avec leurs relations pour la grille du calendrier
-        $cours = Cours::with(['matiere', 'professeur', 'salle', 'classe'])->get();
+    // Planning global pour la grille hebdomadaire (correctif : variable manquante)
+    $cours = EmploiDuTemps::with(['matiere', 'classe', 'salle', 'professeur.user'])
+        ->where('actif', true)
+        ->get();
 
-        // 3. Envoi à la vue
-        return view('chef.dashboard', compact(
-            'totalClasses', 
-            'totalProfesseurs', 
-            'totalEDT', 
-            'cours'
-        ));
-    }
+    // NOUVEAU — Étudiants absents aujourd'hui, toutes classes confondues
+    $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
+        ->whereDate('date', today())
+        ->where('statut', 'absent')
+        ->orderByDesc('date')
+        ->get();
+
+    return view('chef.dashboard', compact('totalClasses', 'totalProfesseurs', 'totalEDT', 'cours', 'absentsAujourdhui'));
+}
 
     /**
      * Affiche l'écran d'accueil de gestion des emplois du temps (Liste des classes).

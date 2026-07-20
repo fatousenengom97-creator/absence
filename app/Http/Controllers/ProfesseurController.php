@@ -11,14 +11,10 @@ class ProfesseurController extends Controller
     
 public function dashboard()
 {
-    // 1. Récupérer l'utilisateur connecté
     $user = auth()->user();
-
-    // 2. Sécurisation : Vérifier si l'utilisateur a bien un profil professeur lié
     $professeur = $user->professeur;
 
     if (!$professeur) {
-        // Si le profil n'est pas lié, on évite le plantage et on affiche un message clair
         return redirect()->route('login')->with('error', "Votre compte n'est lié à aucun profil de professeur. Contactez l'administrateur.");
     }
 
@@ -26,30 +22,23 @@ public function dashboard()
     $debutSemaine = Carbon::parse($semaine)->startOfWeek();
     $finSemaine   = Carbon::parse($semaine)->endOfWeek();
 
-    // Clé primaire du professeur (à adapter selon ton modèle : id ou idProfesseur)
-    // Ici on suppose que c'est $professeur->id ou $professeur->idProfesseur
     $professeurId = $professeur->id ?? $professeur->idProfesseur;
 
-    // Cours planifiés cette semaine (table cours)
-    // ATTENTION : Vérifie si la clé dans ta table 'cours' est bien 'professeur_id' ou 'idProfesseur'
     $coursSemaine = Cours::with(['matiere', 'classe', 'salle'])
         ->where('professeur_id', $professeurId)
         ->whereBetween('heureDebut', [$debutSemaine, $finSemaine])
         ->orderBy('heureDebut')
         ->get();
 
-    // EDT fixe (table emplois_du_temps)
     $jourActuel = Carbon::now()->locale('fr')->isoFormat('dddd');
     $jourActuel = ucfirst($jourActuel);
 
-    // ATTENTION : Vérifie si dans 'emplois_du_temps' la clé est 'professeur_id' ou 'idProfesseur'
     $edtSemaine = EmploiDuTemps::with(['matiere', 'classe', 'salle'])
-        ->where('professeur_id', $professeurId) 
+        ->where('professeur_id', $professeurId)
         ->where('actif', true)
         ->get()
         ->groupBy('jour');
 
-    // Cours du jour avec bouton pointage
     $coursAujourdhui = Cours::with(['matiere', 'classe', 'salle'])
         ->where('professeur_id', $professeurId)
         ->whereDate('heureDebut', today())
@@ -63,13 +52,22 @@ public function dashboard()
         ->where('statut', 'absent')
         ->count();
 
+    // NOUVEAU — Étudiants absents aujourd'hui, pour les cours de ce professeur
+    $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
+        ->whereHas('cours', fn($q) => $q->where('professeur_id', $professeurId))
+        ->whereDate('date', today())
+        ->where('statut', 'absent')
+        ->orderByDesc('date')
+        ->get();
+
     $jours = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
     $heures = range(8, 18);
 
     return view('professeur.dashboard', compact(
         'coursSemaine', 'edtSemaine', 'coursAujourdhui',
         'totalCours', 'totalAbsences', 'professeur',
-        'jours', 'heures', 'semaine', 'debutSemaine', 'finSemaine'
+        'jours', 'heures', 'semaine', 'debutSemaine', 'finSemaine',
+        'absentsAujourdhui'
     ));
 }
 
@@ -125,4 +123,43 @@ public function modifierStatutAbsence(Request $request, \App\Models\Absence $abs
         'Statut modifié. Le chef de service a été notifié.'
     );
 }
+public function demarrerDepuisEDT(EmploiDuTemps $edt)
+    {
+        $professeur = auth()->user()->professeur;
+
+        if ($edt->professeur_id !== $professeur->id) {
+            abort(403, 'Ce créneau ne vous appartient pas.');
+        }
+
+        $aujourdhui = today()->toDateString();
+
+        // Vérifie si un Cours a déjà été créé aujourd'hui pour ce créneau EDT précis
+        $cours = Cours::where('idMatiere', $edt->idMatiere)
+            ->where('idClasse', $edt->idClasse)
+            ->where('idSalle', $edt->idSalle)
+            ->where('professeur_id', $edt->professeur_id)
+            ->whereDate('heureDebut', $aujourdhui)
+            ->first();
+
+        if (!$cours) {
+            $heureDebut = $aujourdhui . ' ' . $edt->heureDebut;
+            $heureFin   = $aujourdhui . ' ' . $edt->heureFin;
+
+            $cours = Cours::create([
+                'idMatiere'     => $edt->idMatiere,
+                'professeur_id' => $edt->professeur_id,
+                'idClasse'      => $edt->idClasse,
+                'idSalle'       => $edt->idSalle,
+                'typeCours'     => $edt->typeCours,
+                'heureDebut'    => $heureDebut,
+                'heureFin'      => $heureFin,
+                'jour'          => $edt->jour,
+                'statut'        => 'planifie',
+            ]);
+        }
+
+        // Réutilise la logique existante de démarrage (statut + initialisation des absences)
+        return (new CoursController)->demarrer($cours);
+    }
+
 }
