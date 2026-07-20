@@ -34,7 +34,7 @@ public function dashboard()
     $jourActuel = ucfirst($jourActuel);
 
     $edtSemaine = EmploiDuTemps::with(['matiere', 'classe', 'salle'])
-        ->where('professeur_id', $professeurId)
+        ->where('professeur_id', $professeurId) 
         ->where('actif', true)
         ->get()
         ->groupBy('jour');
@@ -52,22 +52,13 @@ public function dashboard()
         ->where('statut', 'absent')
         ->count();
 
-    // NOUVEAU — Étudiants absents aujourd'hui, pour les cours de ce professeur
-    $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
-        ->whereHas('cours', fn($q) => $q->where('professeur_id', $professeurId))
-        ->whereDate('date', today())
-        ->where('statut', 'absent')
-        ->orderByDesc('date')
-        ->get();
-
     $jours = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
     $heures = range(8, 18);
 
     return view('professeur.dashboard', compact(
         'coursSemaine', 'edtSemaine', 'coursAujourdhui',
         'totalCours', 'totalAbsences', 'professeur',
-        'jours', 'heures', 'semaine', 'debutSemaine', 'finSemaine',
-        'absentsAujourdhui'
+        'jours', 'heures', 'semaine', 'debutSemaine', 'finSemaine'
     ));
 }
 

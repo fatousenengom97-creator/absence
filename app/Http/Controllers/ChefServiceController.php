@@ -26,19 +26,11 @@ public function dashboard()
     $totalProfesseurs = Professeur::count();
     $totalEDT = EmploiDuTemps::count();
 
-    // Planning global pour la grille hebdomadaire (correctif : variable manquante)
     $cours = EmploiDuTemps::with(['matiere', 'classe', 'salle', 'professeur.user'])
         ->where('actif', true)
         ->get();
 
-    // NOUVEAU — Étudiants absents aujourd'hui, toutes classes confondues
-    $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
-        ->whereDate('date', today())
-        ->where('statut', 'absent')
-        ->orderByDesc('date')
-        ->get();
-
-    return view('chef.dashboard', compact('totalClasses', 'totalProfesseurs', 'totalEDT', 'cours', 'absentsAujourdhui'));
+    return view('chef.dashboard', compact('totalClasses', 'totalProfesseurs', 'totalEDT', 'cours'));
 }
 
     /**
@@ -152,6 +144,37 @@ public function dashboard()
 
         return redirect()->back()->with('success', 'Créneau supprimé avec succès !');
     }
+    public function updateEDT(Request $request, $idEDT)
+    {
+        $creneau = EmploiDuTemps::where('idEDT', $idEDT)->firstOrFail();
+
+        $request->validate([
+            'idMatiere'     => 'required|exists:matieres,idMatiere',
+            'professeur_id' => 'required|exists:professeurs,id',
+            'idSalle'       => 'required|exists:salles,idSalle',
+            'date'          => 'required|date|after_or_equal:' . now()->startOfWeek()->format('Y-m-d'),
+            'heureDebut'    => 'required',
+            'heureFin'      => 'required|after:heureDebut',
+        ], [
+            'date.after_or_equal' => 'Impossible de déplacer ce créneau dans une semaine déjà passée.',
+        ]);
+
+        $jourFr = ucfirst(Carbon::parse($request->date)->locale('fr')->dayName);
+
+        $creneau->update([
+            'idMatiere'     => $request->idMatiere,
+            'professeur_id' => $request->professeur_id,
+            'idSalle'       => $request->idSalle,
+            'date'          => $request->date,
+            'jour'          => $jourFr,
+            'heureDebut'    => $request->heureDebut,
+            'heureFin'      => $request->heureFin,
+            'typeCours'     => $request->input('typeCours', 'CM'),
+            'couleur'       => $request->input('couleur', '#3B82F6'),
+        ]);
+
+        return redirect()->back()->with('success', 'Créneau modifié avec succès !');
+    }
 
     /**
      * Affiche l'occupation en temps réel et l'état des salles de cours pour la journée.
@@ -185,31 +208,38 @@ public function dashboard()
     /**
      * Calcule et génère le rapport global d'absentéisme par classe.
      */
-    public function rapportGlobal(Request $request)
-    {
-        $classesRaw = Classe::with(['filiere', 'niveau'])->get();
+   public function rapportGlobal(Request $request)
+{
+    $classesRaw = Classe::with(['filiere', 'niveau'])->get();
 
-        $classes = $classesRaw->map(function ($classe) {
-            $pointages = Absence::whereHas('cours', function ($query) use ($classe) {
-                $query->where('idClasse', $classe->idClasse);
-            })->get();
+    $classes = $classesRaw->map(function ($classe) {
+        $pointages = Absence::whereHas('cours', function ($query) use ($classe) {
+            $query->where('idClasse', $classe->idClasse);
+        })->get();
 
-            $total = $pointages->count();
-            $presents = $pointages->where('statut', 'present')->count();
-            $absents = $pointages->where('statut', 'absent')->count();
+        $total = $pointages->count();
+        $presents = $pointages->where('statut', 'present')->count();
+        $absents  = $pointages->where('statut', 'absent')->count();
 
-            $taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
+        $taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
 
-            $classe->total = $total;
-            $classe->presents = $presents;
-            $classe->absents = $absents;
-            $classe->taux = $taux;
+        $classe->total = $total;
+        $classe->presents = $presents;
+        $classe->absents  = $absents;
+        $classe->taux = $taux;
 
-            return $classe;
-        });
+        return $classe;
+    });
 
-        return view('chef.rapport', compact('classes'));
-    }
+    // Étudiants absents aujourd'hui, toutes classes confondues
+    $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
+        ->whereDate('date', today())
+        ->where('statut', 'absent')
+        ->orderByDesc('date')
+        ->get();
+
+    return view('chef.rapport', compact('classes', 'absentsAujourdhui'));
+}
 
     /**
      * Génère l'export PDF du rapport global pour le Chef de Service.

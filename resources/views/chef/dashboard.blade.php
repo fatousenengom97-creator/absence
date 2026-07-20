@@ -5,7 +5,7 @@
 @section('content')
 {{-- 1. CARTES DES STATISTIQUES --}}
 <div class="row g-4 mb-4">
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card text-center shadow-sm border-0">
             <div class="card-body py-4">
                 <i class="bi bi-building fs-1 text-primary"></i>
@@ -14,7 +14,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card text-center shadow-sm border-0">
             <div class="card-body py-4">
                 <i class="bi bi-person-badge fs-1 text-success"></i>
@@ -23,7 +23,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card text-center shadow-sm border-0">
             <div class="card-body py-4">
                 <i class="bi bi-calendar-week fs-1 text-warning"></i>
@@ -32,50 +32,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card text-center shadow-sm border-0">
-            <div class="card-body py-4">
-                <i class="bi bi-person-x fs-1 text-danger"></i>
-                <h4 class="mt-2 fw-bold">{{ $absentsAujourdhui->count() }}</h4>
-                <small class="text-muted text-uppercase fw-semibold">Absents aujourd'hui</small>
-            </div>
-        </div>
-    </div>
 </div>
-
-{{-- NOUVEAU — Étudiants absents aujourd'hui, toutes classes --}}
-@if($absentsAujourdhui->isNotEmpty())
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-danger text-white">
-        <i class="bi bi-person-x me-2"></i>
-        Étudiants absents aujourd'hui — toutes classes ({{ $absentsAujourdhui->count() }})
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Étudiant</th>
-                        <th>Matière</th>
-                        <th>Classe</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach($absentsAujourdhui as $a)
-                <tr>
-                    <td>{{ $a->etudiant->user->prenom ?? '' }} {{ $a->etudiant->user->nom ?? '' }}</td>
-                    <td>{{ $a->cours->matiere->nomMatiere ?? '—' }}</td>
-                    <td>{{ $a->cours->classe->nom ?? '—' }}</td>
-                    <td><small class="text-muted">{{ \Carbon\Carbon::parse($a->date)->format('d/m/Y') }}</small></td>
-                </tr>
-                @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-@endif
 
 {{-- 2. CALENDRIER HEBDOMADAIRE GLOBAL --}}
 <div class="card shadow-sm border-0 mb-4">

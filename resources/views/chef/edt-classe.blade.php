@@ -21,10 +21,11 @@
     }
     .bloc-cours .mat { font-weight: 700; font-size: .78rem; line-height: 1.2; }
     .bloc-cours .info { opacity: .88; font-size: .68rem; line-height: 1.3; }
-    .bloc-cours .bas { display: flex; justify-content: space-between; align-items: center; margin-top: 3px; }
+    .bloc-cours .bas { display: flex; justify-content: space-between; align-items: center; margin-top: 3px; gap: 4px; }
     .badge-type { font-size: .6rem; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.25); color: #fff; font-weight: 700; }
-    .btn-suppr { font-size: .6rem; padding: 1px 4px; border: none; border-radius: 4px; background: rgba(0,0,0,.25); color: #fff; cursor: pointer; }
-    .btn-suppr:hover { background: rgba(0,0,0,.45); }
+    .btn-suppr, .btn-modif { font-size: .6rem; padding: 1px 4px; border: none; border-radius: 4px; background: rgba(0,0,0,.25); color: #fff; cursor: pointer; }
+    .btn-suppr:hover, .btn-modif:hover { background: rgba(0,0,0,.45); }
+    #form-edt.mode-edition { border: 2px solid #f59e0b; border-radius: 8px; padding: 8px; }
 </style>
 @endpush
 
@@ -54,24 +55,29 @@
 </div>
 @endif
 
-{{-- Formulaire ajout créneau --}}
+{{-- Formulaire ajout/modification créneau --}}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header" style="background:#0B1F33;color:#fff;">
-        <i class="bi bi-plus-circle me-2"></i>Ajouter un créneau
+    <div class="card-header d-flex justify-content-between align-items-center" style="background:#0B1F33;color:#fff;">
+        <span id="form-titre"><i class="bi bi-plus-circle me-2"></i>Ajouter un créneau</span>
+        <a href="#" id="btn-annuler-edition" class="btn btn-sm btn-outline-light" style="display:none;" onclick="annulerEdition(); return false;">
+            <i class="bi bi-x-circle me-1"></i>Annuler la modification
+        </a>
     </div>
     <div class="card-body">
-        <form method="POST" action="{{ route('chef.edt.store', $classe) }}">
+        <form method="POST" action="{{ route('chef.edt.store', $classe) }}" id="form-edt">
             @csrf
+            <input type="hidden" name="_method" id="method-field" value="">
+
             <div class="row g-3">
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Date <span class="text-danger">*</span></label>
-                    <input type="date" name="date" class="form-control"
+                    <input type="date" name="date" id="champ-date" class="form-control"
                            min="{{ now()->startOfWeek()->format('Y-m-d') }}"
                            value="{{ old('date', $debutSemaine->format('Y-m-d')) }}" required>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Début <span class="text-danger">*</span></label>
-                    <select name="heureDebut" class="form-select" required>
+                    <select name="heureDebut" id="champ-heureDebut" class="form-select" required>
                         <option value="">--</option>
                         @foreach($heures as $h)
                         @php $val = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00'; @endphp
@@ -81,7 +87,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Fin <span class="text-danger">*</span></label>
-                    <select name="heureFin" class="form-select" required>
+                    <select name="heureFin" id="champ-heureFin" class="form-select" required>
                         <option value="">--</option>
                         @foreach($heures as $h)
                         @php $val = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00'; @endphp
@@ -92,7 +98,7 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Matière <span class="text-danger">*</span></label>
-                    <select name="idMatiere" class="form-select" required>
+                    <select name="idMatiere" id="champ-idMatiere" class="form-select" required>
                         <option value="">-- Matière --</option>
                         @foreach($matieres as $m)
                         <option value="{{ $m->idMatiere }}" {{ old('idMatiere') == $m->idMatiere ? 'selected' : '' }}>
@@ -103,7 +109,7 @@
                 </div>
                 <div class="col-md-1">
                     <label class="form-label fw-semibold">Type</label>
-                    <select name="typeCours" class="form-select">
+                    <select name="typeCours" id="champ-typeCours" class="form-select">
                         <option value="CM">CM</option>
                         <option value="TD">TD</option>
                         <option value="TP">TP</option>
@@ -111,7 +117,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Professeur <span class="text-danger">*</span></label>
-                    <select name="professeur_id" class="form-select" required>
+                    <select name="professeur_id" id="champ-professeur_id" class="form-select" required>
                         <option value="">-- Professeur --</option>
                         @foreach($professeurs as $p)
                         <option value="{{ $p->id }}" {{ old('professeur_id') == $p->id ? 'selected' : '' }}>
@@ -122,7 +128,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Salle <span class="text-danger">*</span></label>
-                    <select name="idSalle" class="form-select" required>
+                    <select name="idSalle" id="champ-idSalle" class="form-select" required>
                         <option value="">-- Salle --</option>
                         @foreach($salles as $s)
                         <option value="{{ $s->idSalle }}" {{ old('idSalle') == $s->idSalle ? 'selected' : '' }}>
@@ -133,11 +139,11 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Couleur</label>
-                    <input type="color" name="couleur" class="form-control form-control-color w-100"
+                    <input type="color" name="couleur" id="champ-couleur" class="form-control form-control-color w-100"
                            value="{{ old('couleur', '#3B82F6') }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">
+                    <button type="submit" id="btn-submit-edt" class="btn btn-primary w-100">
                         <i class="bi bi-save me-1"></i>Ajouter
                     </button>
                 </div>
@@ -214,15 +220,31 @@
                             </div>
                             <div class="bas">
                                 <span class="badge-type">{{ $c->typeCours }}</span>
-                                <form method="POST"
-                                      action="{{ route('chef.edt.destroy', $c->idEDT) }}"
-                                      onsubmit="return confirm('Supprimer ce créneau ?')"
-                                      style="margin:0;">
-                                    @csrf @method('DELETE')
-                                    <button class="btn-suppr">
-                                        <i class="bi bi-trash"></i>
+                                <div class="d-flex gap-1">
+                                    <button type="button" class="btn-modif"
+                                        onclick="chargerPourEdition({
+                                            idEDT: {{ $c->idEDT }},
+                                            date: '{{ \Carbon\Carbon::parse($c->date)->format('Y-m-d') }}',
+                                            heureDebut: '{{ substr($c->heureDebut,0,5) }}',
+                                            heureFin: '{{ substr($c->heureFin,0,5) }}',
+                                            idMatiere: '{{ $c->idMatiere }}',
+                                            professeur_id: '{{ $c->professeur_id }}',
+                                            idSalle: '{{ $c->idSalle }}',
+                                            typeCours: '{{ $c->typeCours }}',
+                                            couleur: '{{ $c->couleur ?? '#3B82F6' }}'
+                                        })">
+                                        <i class="bi bi-pencil"></i>
                                     </button>
-                                </form>
+                                    <form method="POST"
+                                          action="{{ route('chef.edt.destroy', $c->idEDT) }}"
+                                          onsubmit="return confirm('Supprimer ce créneau ?')"
+                                          style="margin:0;">
+                                        @csrf @method('DELETE')
+                                        <button class="btn-suppr">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                         @endforeach
@@ -235,4 +257,44 @@
         </div>
     </div>
 </div>
+
+<script>
+const urlStore = "{{ route('chef.edt.store', $classe) }}";
+
+function chargerPourEdition(creneau) {
+    document.getElementById('champ-date').value = creneau.date;
+    document.getElementById('champ-heureDebut').value = creneau.heureDebut;
+    document.getElementById('champ-heureFin').value = creneau.heureFin;
+    document.getElementById('champ-idMatiere').value = creneau.idMatiere;
+    document.getElementById('champ-professeur_id').value = creneau.professeur_id;
+    document.getElementById('champ-idSalle').value = creneau.idSalle;
+    document.getElementById('champ-typeCours').value = creneau.typeCours;
+    document.getElementById('champ-couleur').value = creneau.couleur;
+
+    const form = document.getElementById('form-edt');
+    form.action = urlStore.replace(/\/[^\/]*$/, '/emploi-du-temps/creneau/' + creneau.idEDT);
+    // Construction propre de l'URL de mise à jour
+    form.action = "{{ url('chef/emploi-du-temps/creneau') }}/" + creneau.idEDT;
+    document.getElementById('method-field').value = 'PUT';
+
+    document.getElementById('form-titre').innerHTML = '<i class="bi bi-pencil me-2"></i>Modifier le créneau';
+    document.getElementById('btn-submit-edt').innerHTML = '<i class="bi bi-save me-1"></i>Enregistrer les modifications';
+    document.getElementById('btn-annuler-edition').style.display = 'inline-block';
+    form.classList.add('mode-edition');
+
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function annulerEdition() {
+    const form = document.getElementById('form-edt');
+    form.reset();
+    form.action = urlStore;
+    document.getElementById('method-field').value = '';
+
+    document.getElementById('form-titre').innerHTML = '<i class="bi bi-plus-circle me-2"></i>Ajouter un créneau';
+    document.getElementById('btn-submit-edt').innerHTML = '<i class="bi bi-save me-1"></i>Ajouter';
+    document.getElementById('btn-annuler-edition').style.display = 'none';
+    form.classList.remove('mode-edition');
+}
+</script>
 @endsection

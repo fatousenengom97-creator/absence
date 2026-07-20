@@ -125,6 +125,7 @@ Route::middleware(['auth', 'role:chef_service'])
     Route::get('/emploi-du-temps/{classe}', [ChefServiceController::class, 'edtClasse'])->name('edt.classe');
     Route::post('/emploi-du-temps/{classe}', [ChefServiceController::class, 'storeEDT'])->name('edt.store');
     Route::delete('/emploi-du-temps/creneau/{idEDT}', [ChefServiceController::class, 'destroyEDT'])->name('edt.destroy');
+    Route::put('/emploi-du-temps/creneau/{idEDT}', [ChefServiceController::class, 'updateEDT'])->name('edt.update');
     
     // 🆕 NOUVELLES ROUTES : Affichage de l'EDT et insertion sécurisée anti-doublon
     Route::get('/classes/{idClasse}/emploi-du-temps', [EmploiDuTempsController::class, 'show'])->name('emploi_du_temps.show');

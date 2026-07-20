@@ -98,6 +98,19 @@
             background-color: #1e40af;
         }
 
+        .section-title {
+            max-width: 1000px;
+            margin: 24px auto 8px auto;
+            font-size: 15px;
+            font-weight: bold;
+            color: #991b1b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .table-absents th { background-color: #991b1b; }
+
         .row-hidden { display: none; }
     </style>
 </head>
@@ -107,6 +120,33 @@
         <h1 class="title">UFR SATIC — Université Alioune Diop</h1>
         <div class="subtitle">Rapport Global des Absences Pédagogiques (Généré le {{ date('d/m/Y') }})</div>
     </div>
+
+    {{-- Étudiants absents aujourd'hui --}}
+    @if($absentsAujourdhui->isNotEmpty())
+    <div class="section-title">
+        ⚠️ Étudiants absents aujourd'hui — toutes classes ({{ $absentsAujourdhui->count() }})
+    </div>
+    <table class="table-absents" style="margin-bottom: 24px;">
+        <thead>
+            <tr>
+                <th>Étudiant</th>
+                <th>Matière</th>
+                <th>Classe</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($absentsAujourdhui as $a)
+            <tr>
+                <td>{{ $a->etudiant->user->prenom ?? '' }} {{ $a->etudiant->user->nom ?? '' }}</td>
+                <td>{{ $a->cours->matiere->nomMatiere ?? '—' }}</td>
+                <td>{{ $a->cours->classe->nom ?? '—' }}</td>
+                <td style="color:#6b7280;">{{ \Carbon\Carbon::parse($a->date)->format('d/m/Y') }}</td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+    @endif
 
     <div class="filter-bar">
         <label for="filtreClasse">Filtrer par classe :</label>

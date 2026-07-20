@@ -103,38 +103,6 @@
 </div>
 @endif
 
-{{-- Étudiants absents aujourd'hui --}}
-@if($absentsAujourdhui->isNotEmpty())
-<div class="card mb-4 border-danger">
-    <div class="card-header bg-danger text-white">
-        <i class="bi bi-person-x me-2"></i>
-        Étudiants absents aujourd'hui ({{ $absentsAujourdhui->count() }})
-    </div>
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Étudiant</th>
-                    <th>Matière</th>
-                    <th>Classe</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach($absentsAujourdhui as $a)
-            <tr>
-                <td>{{ $a->etudiant->user->prenom ?? '' }} {{ $a->etudiant->user->nom ?? '' }}</td>
-                <td>{{ $a->cours->matiere->nomMatiere ?? '—' }}</td>
-                <td>{{ $a->cours->classe->nom ?? '—' }}</td>
-                <td><small class="text-muted">{{ \Carbon\Carbon::parse($a->date)->format('d/m/Y') }}</small></td>
-            </tr>
-            @endforeach
-            </tbody>
-        </table>
-    </div>
-</div>
-@endif
-
 {{-- Navigation semaine EDT --}}
 @php
     $semainePrec = $debutSemaine->copy()->subWeek()->format('Y-m-d');
