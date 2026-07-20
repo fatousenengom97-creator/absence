@@ -6,13 +6,16 @@
     <style>
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            color: #8b6666;
-            font-size: 12px;
+            color: #374151;
+            font-size: 13px;
             line-height: 1.4;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 20px;
         }
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
             border-bottom: 2px solid #1e3a8a;
             padding-bottom: 10px;
         }
@@ -28,10 +31,31 @@
             color: #6b7280;
             margin-top: 5px;
         }
+        .filter-bar {
+            max-width: 1000px;
+            margin: 0 auto 16px auto;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .filter-bar select {
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 13px;
+            min-width: 260px;
+        }
+        .filter-bar label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #1e3a8a;
+        }
         table {
             width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
             border-collapse: collapse;
-            margin-top: 10px;
+            background: #fff;
         }
         th {
             background-color: #1e3a8a;
@@ -45,14 +69,11 @@
             padding: 10px;
             border: 1px solid #d1d5db;
         }
-        tr:nth-child(even) {
-            background-color: #f9fafb;
-        }
+        tr:nth-child(even) { background-color: #f9fafb; }
         .text-center { text-align: center; }
         .text-danger { color: #dc2626; font-weight: bold; }
         .text-success { color: #16a34a; font-weight: bold; }
-        
-        /* Badges de taux dynamiques */
+
         .badge {
             padding: 4px 8px;
             border-radius: 4px;
@@ -60,14 +81,24 @@
             font-weight: bold;
             display: inline-block;
         }
-        .badge-danger {
-            background-color: #fee2e2;
-            color: #991b1b;
+        .badge-danger { background-color: #fee2e2; color: #991b1b; }
+        .badge-success { background-color: #dcfce7; color: #14532d; }
+
+        .btn-voir {
+            display: inline-block;
+            padding: 6px 12px;
+            background-color: #1e3a8a;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
         }
-        .badge-success {
-            background-color: #dcfce7;
-            color: #14532d;
+        .btn-voir:hover {
+            background-color: #1e40af;
         }
+
+        .row-hidden { display: none; }
     </style>
 </head>
 <body>
@@ -77,41 +108,77 @@
         <div class="subtitle">Rapport Global des Absences Pédagogiques (Généré le {{ date('d/m/Y') }})</div>
     </div>
 
+    <div class="filter-bar">
+        <label for="filtreClasse">Filtrer par classe :</label>
+        <select id="filtreClasse" onchange="filtrerClasse()">
+            <option value="tout">Toutes les classes</option>
+            @foreach($classes as $classe)
+            <option value="classe-{{ $classe->idClasse }}">
+                {{ $classe->nom }} ({{ $classe->filiere->nomFiliere ?? '—' }} - {{ $classe->niveau->nom ?? '—' }})
+            </option>
+            @endforeach
+        </select>
+    </div>
+
     <table>
         <thead>
             <tr>
+                <th>Classe</th>
                 <th>Filière / Niveau</th>
                 <th class="text-center">Total Pointages</th>
                 <th class="text-center">Présences</th>
                 <th class="text-center">Absences</th>
                 <th class="text-center">Taux d'absentéisme</th>
+                <th class="text-center">Action</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="tableBody">
             @forelse($classes as $classe)
-                <tr>
-                    <td style="font-weight: bold;">
-                        {{ $classe->filiere->nom ?? 'Filière' }} - {{ $classe->niveau->nom ?? '' }}
-                    </td>
+                <tr class="ligne-classe" data-classe="classe-{{ $classe->idClasse }}">
+                    <td style="font-weight: bold;">{{ $classe->nom }}</td>
+                    <td>{{ $classe->filiere->nomFiliere ?? '—' }} - {{ $classe->niveau->nom ?? '—' }}</td>
                     <td class="text-center">{{ $classe->total }}</td>
                     <td class="text-center text-success">{{ $classe->presents }}</td>
                     <td class="text-center text-danger">{{ $classe->absents }}</td>
                     <td class="text-center">
-                        {{-- Le badge change de couleur si le taux dépasse 20% --}}
                         <span class="badge {{ $classe->taux > 20 ? 'badge-danger' : 'badge-success' }}">
                             {{ $classe->taux }}%
                         </span>
                     </td>
+                    <td class="text-center">
+                        @if($classe->filiere)
+                        <a href="{{ route('chef.etudiants-filiere.etudiants', [$classe->filiere, $classe]) }}" class="btn-voir">
+                            Voir les étudiants
+                        </a>
+                        @else
+                        <span style="color:#9ca3af;">—</span>
+                        @endif
+                    </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="5" class="text-center" style="color: #6b7280; padding: 20px;">
+                    <td colspan="7" class="text-center" style="color: #6b7280; padding: 20px;">
                         Aucune donnée d'absence disponible pour le moment.
                     </td>
                 </tr>
             @endforelse
         </tbody>
     </table>
+
+    <script>
+        function filtrerClasse() {
+            const valeur = document.getElementById('filtreClasse').value;
+            const lignes = document.querySelectorAll('.ligne-classe');
+
+            lignes.forEach(function (ligne) {
+                if (valeur === 'tout' || ligne.dataset.classe === valeur) {
+                    ligne.classList.remove('row-hidden');
+                } else {
+                    ligne.classList.add('row-hidden');
+                }
+            });
+        }
+    </script>
 
 </body>
 </html>

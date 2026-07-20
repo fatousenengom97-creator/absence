@@ -64,13 +64,10 @@
             @csrf
             <div class="row g-3">
                 <div class="col-md-2">
-                    <label class="form-label fw-semibold">Jour <span class="text-danger">*</span></label>
-                    <select name="jour" class="form-select" required>
-                        <option value="">-- Jour --</option>
-                        @foreach($jours as $j)
-                        <option value="{{ $j }}" {{ old('jour') == $j ? 'selected' : '' }}>{{ $j }}</option>
-                        @endforeach
-                    </select>
+                    <label class="form-label fw-semibold">Date <span class="text-danger">*</span></label>
+                    <input type="date" name="date" class="form-control"
+                           min="{{ now()->startOfWeek()->format('Y-m-d') }}"
+                           value="{{ old('date', $debutSemaine->format('Y-m-d')) }}" required>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Début <span class="text-danger">*</span></label>
@@ -149,11 +146,33 @@
     </div>
 </div>
 
+{{-- Navigation semaine --}}
+@php
+    $semainePrec = $debutSemaine->copy()->subWeek()->format('Y-m-d');
+    $semaineSuiv = $debutSemaine->copy()->addWeek()->format('Y-m-d');
+@endphp
+
 {{-- Grille EDT --}}
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center" style="background:#0B1F33;color:#fff;">
-        <span><i class="bi bi-calendar-week me-2"></i>{{ $classe->nom }}</span>
-        <small style="color:#00D9C0;">Lundi → Samedi • 08h00 → 19h00</small>
+        @if($semainePassee)
+        <span class="btn btn-sm btn-outline-light disabled" style="opacity:.3;">
+            <i class="bi bi-chevron-left"></i> Précédente
+        </span>
+        @else
+        <a href="?semaine={{ $semainePrec }}" class="btn btn-sm btn-outline-light">
+            <i class="bi bi-chevron-left"></i> Précédente
+        </a>
+        @endif
+
+        <span>
+            <i class="bi bi-calendar-week me-2"></i>
+            {{ $classe->nom }} — Semaine du {{ $debutSemaine->format('d/m/Y') }} au {{ $finSemaine->format('d/m/Y') }}
+        </span>
+
+        <a href="?semaine={{ $semaineSuiv }}" class="btn btn-sm btn-outline-light">
+            Suivante <i class="bi bi-chevron-right"></i>
+        </a>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -161,8 +180,11 @@
                 <thead>
                     <tr>
                         <th style="width:70px;">Heure</th>
-                        @foreach($jours as $jour)
-                        <th style="min-width:150px;">{{ $jour }}</th>
+                        @foreach($jours as $i => $jour)
+                        @php $dateJour = $debutSemaine->copy()->addDays($i); @endphp
+                        <th style="min-width:150px;">
+                            {{ $jour }}<br><small style="font-weight:400;opacity:.8;">{{ $dateJour->format('d/m') }}</small>
+                        </th>
                         @endforeach
                     </tr>
                 </thead>
@@ -171,12 +193,12 @@
                 @php $hStr = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00'; @endphp
                 <tr>
                     <td class="heure-col">{{ $hStr }}</td>
-                    @foreach($jours as $jour)
+                    @foreach($jours as $i => $jour)
                     @php
-                        // Filtrer les créneaux qui commencent exactement à cette heure
+                        $dateJour = $debutSemaine->copy()->addDays($i)->format('Y-m-d');
                         $creneauxHeure = collect();
-                        if (isset($edt[$jour])) {
-                            $creneauxHeure = $edt[$jour]->filter(function($c) use ($hStr) {
+                        if (isset($edt[$dateJour])) {
+                            $creneauxHeure = $edt[$dateJour]->filter(function($c) use ($hStr) {
                                 return substr($c->heureDebut, 0, 5) === $hStr;
                             });
                         }

@@ -3,9 +3,11 @@
 @section('page-title', 'Classes — ' . $filiere->nomFiliere)
 
 @section('content')
+@php $prefix = auth()->user()->role === 'chef_service' ? 'chef' : 'admin'; @endphp
+
 <nav class="mb-4">
     <ol class="breadcrumb mb-0">
-        <li class="breadcrumb-item"><a href="{{ route('admin.etudiants-filiere.index') }}">Filières</a></li>
+        <li class="breadcrumb-item"><a href="{{ route($prefix.'.etudiants-filiere.index') }}">Filières</a></li>
         <li class="breadcrumb-item active">{{ $filiere->nomFiliere }}</li>
     </ol>
 </nav>
@@ -19,7 +21,7 @@
         <div class="row g-3 mb-3">
             @foreach($classes as $classe)
             <div class="col-md-4 col-lg-3">
-                <a href="{{ route('admin.etudiants-filiere.etudiants', [$filiere, $classe]) }}" class="text-decoration-none">
+                <a href="{{ route($prefix.'.etudiants-filiere.etudiants', [$filiere, $classe]) }}" class="text-decoration-none">
                     <div class="card h-100" style="transition:.2s;cursor:pointer;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                         <div class="card-body text-center">
                             <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2"

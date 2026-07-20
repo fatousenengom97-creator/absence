@@ -40,6 +40,9 @@
             <a href="{{ route('chef.rapport') }}" class="nav-link {{ Request::routeIs('chef.rapport') ? 'active' : '' }}">
                 <i class="bi bi-file-earmark-bar-graph"></i> Rapport Global
             </a>
+            <a href="{{ route('chef.rapports-cours.index') }}" class="nav-link {{ Request::routeIs('chef.rapports-cours.*') ? 'active' : '' }}">
+                <i class="bi bi-file-earmark-text"></i> Rapports de Cours
+            </a>
             <a href="{{ route('chef.alertes') }}" class="nav-link {{ Request::routeIs('chef.alertes') ? 'active' : '' }}">
                 <i class="bi bi-exclamation-triangle"></i> Alertes Absences
             </a>
@@ -68,11 +71,9 @@
             <a href="{{ route('etudiant.absences') }}" class="nav-link {{ Request::routeIs('etudiant.absences') ? 'active' : '' }}">
                 <i class="bi bi-calendar-x"></i> Mes Absences
             </a>
-            
-            <!-- Lien dynamique vers son propre emploi du temps s'il a une classe -->
-            @if(auth()->user()->etudiant && auth()->user()->etudiant->classe)
-                {{-- Correction ici : Remplacement de ->id par ->idClasse pour correspondre aux modèles et au contrôleur --}}
-                <a href="{{ route('chef.edt.classe', auth()->user()->etudiant->classe->idClasse) }}" class="nav-link {{ Request::is('chef/emploi-du-temps/' . auth()->user()->etudiant->classe->idClasse) ? 'active' : '' }}">
+
+            @if(auth()->user()->etudiant && auth()->user()->etudiant->inscriptionActuelle?->classe)
+                <a href="{{ route('chef.edt.classe', auth()->user()->etudiant->inscriptionActuelle->classe->idClasse) }}" class="nav-link {{ Request::is('chef/emploi-du-temps/' . auth()->user()->etudiant->inscriptionActuelle->classe->idClasse) ? 'active' : '' }}">
                     <i class="bi bi-calendar3"></i> Mon Emploi du Temps
                 </a>
             @endif
@@ -83,7 +84,7 @@
         <a href="{{ route('biometrie.index') }}" class="nav-link {{ Request::routeIs('biometrie.*') ? 'active' : '' }}">
             <i class="bi bi-fingerprint"></i> Module Biométrique
         </a>
-        
+
         <div class="px-3 mt-4">
             <form method="POST" action="{{ route('logout') }}">
                 @csrf

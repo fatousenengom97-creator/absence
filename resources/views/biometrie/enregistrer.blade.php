@@ -30,31 +30,20 @@
             </div>
         </div>
 
-        {{-- Chargement modèles --}}
-        <div id="loading" class="text-center py-4">
-            <div class="spinner-border text-primary mb-3"></div>
-            <div class="fw-semibold">Chargement des modèles de reconnaissance...</div>
-            <small class="text-muted">Veuillez patienter</small>
-        </div>
-
         {{-- Zone caméra --}}
-        <div id="zone-camera" style="display:none;">
+        <div id="zone-camera">
             <div class="text-center mb-3">
                 <div class="position-relative d-inline-block">
-                    <video id="video" width="480" height="360" autoplay muted
-                           class="rounded-3 border"></video>
-                    <canvas id="canvas-overlay" width="480" height="360"
-                            class="position-absolute top-0 start-0 rounded-3"
-                            style="pointer-events:none;"></canvas>
+                    <video id="video" width="480" height="360" autoplay muted class="rounded-3 border"></video>
                 </div>
             </div>
 
             <div id="statut-detection" class="alert alert-info text-center mb-3">
-                <i class="bi bi-camera me-2"></i>Positionnez votre visage dans le cadre
+                <i class="bi bi-camera me-2"></i>Regardez l'objectif et cliquez sur "Capturer et enregistrer".
             </div>
 
             <div class="d-flex gap-3 justify-content-center">
-                <button id="btn-capturer" class="btn btn-success btn-lg" disabled onclick="capturerEtEnregistrer()">
+                <button id="btn-capturer" class="btn btn-success btn-lg" onclick="capturerEtEnregistrer()">
                     <i class="bi bi-camera-fill me-2"></i>Capturer et enregistrer
                 </button>
                 <a href="{{ route('biometrie.index') }}" class="btn btn-outline-secondary btn-lg">
@@ -69,33 +58,17 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('models/face-api.min.js') }}"></script>
 <script>
-const video  = document.getElementById('video');
-const canvas = document.getElementById('canvas-overlay');
-const ctx    = canvas.getContext('2d');
-let detectInterval = null;
-let visageDetecte  = false;
-let descripteurActuel = null;
+const video = document.getElementById('video');
+let streaming = false;
 
-async function chargerModeles() {
-    const MODEL_URL = '/models';
-    await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-    ]);
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('zone-camera').style.display = 'block';
-    await demarrerCamera();
-}
-
+// Démarrage immédiat de la caméra
 async function demarrerCamera() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
         video.srcObject = stream;
         video.onloadedmetadata = () => {
-            detectInterval = setInterval(detecterVisage, 200);
+            streaming = true;
         };
     } catch(e) {
         document.getElementById('statut-detection').className = 'alert alert-danger text-center mb-3';
@@ -103,53 +76,25 @@ async function demarrerCamera() {
     }
 }
 
-async function detecterVisage() {
-    const detection = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (detection) {
-        // Dessiner le cadre
-        const box = detection.detection.box;
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-        visageDetecte = true;
-        descripteurActuel = detection.descriptor;
-        document.getElementById('btn-capturer').disabled = false;
-        document.getElementById('statut-detection').className = 'alert alert-success text-center mb-3';
-        document.getElementById('statut-detection').innerHTML = '✅ Visage détecté — cliquez sur "Capturer"';
-    } else {
-        visageDetecte = false;
-        descripteurActuel = null;
-        document.getElementById('btn-capturer').disabled = true;
-        document.getElementById('statut-detection').className = 'alert alert-info text-center mb-3';
-        document.getElementById('statut-detection').innerHTML = '🔍 Positionnez votre visage dans le cadre';
-    }
-}
-
 async function capturerEtEnregistrer() {
-    if (!visageDetecte || !descripteurActuel) return;
+    if (!streaming) return;
 
-    clearInterval(detectInterval);
     document.getElementById('btn-capturer').disabled = true;
-    document.getElementById('statut-detection').innerHTML = '⏳ Enregistrement en cours...';
+    document.getElementById('statut-detection').className = 'alert alert-warning text-center mb-3';
+    document.getElementById('statut-detection').innerHTML = '⏳ Capture et analyse en cours...';
 
-    // Capturer photo
+    // Créer un canvas temporaire pour prendre la photo
     const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width  = video.videoWidth;
-    tmpCanvas.height = video.videoHeight;
-    tmpCanvas.getContext('2d').drawImage(video, 0, 0);
+    tmpCanvas.width  = 640;
+    tmpCanvas.height = 480;
+    tmpCanvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+
+    // Capture de la photo en qualité JPEG standard pour traitement serveur
     const photoBase64 = tmpCanvas.toDataURL('image/jpeg', 0.8);
 
-    // Convertir le descripteur en JSON
-    const descripteurJson = JSON.stringify(Array.from(descripteurActuel));
-
     try {
+        // Envoi de la photo à Laravel — c'est le contrôleur PHP qui appelle
+        // ensuite le serveur Python pour extraire le vecteur facial
         const res = await fetch("{{ route('biometrie.sauvegarder', $etudiant) }}", {
             method: 'POST',
             headers: {
@@ -157,8 +102,7 @@ async function capturerEtEnregistrer() {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
             },
             body: JSON.stringify({
-                face_vector: descripteurJson,
-                photo: photoBase64,
+                photo: photoBase64
             })
         });
 
@@ -166,18 +110,18 @@ async function capturerEtEnregistrer() {
         if (data.success) {
             document.getElementById('statut-detection').className = 'alert alert-success text-center mb-3';
             document.getElementById('statut-detection').innerHTML = '✅ Enregistrement réussi ! Redirection...';
-            setTimeout(() => window.location.href = "{{ route('biometrie.index') }}", 2000);
+            setTimeout(() => window.location.href = "{{ route('biometrie.index') }}", 1500);
         } else {
-            throw new Error(data.message ?? 'Erreur inconnue');
+            throw new Error(data.message ?? 'Erreur lors de la sauvegarde.');
         }
     } catch(e) {
         document.getElementById('statut-detection').className = 'alert alert-danger text-center mb-3';
         document.getElementById('statut-detection').innerHTML = '❌ Erreur : ' + e.message;
-        detectInterval = setInterval(detecterVisage, 200);
         document.getElementById('btn-capturer').disabled = false;
     }
 }
 
-chargerModeles();
+// Initialisation au chargement de la page
+demarrerCamera();
 </script>
 @endpush

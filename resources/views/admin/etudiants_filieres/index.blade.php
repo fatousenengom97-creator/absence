@@ -3,10 +3,12 @@
 @section('page-title', 'Étudiants par filière')
 
 @section('content')
+@php $prefix = auth()->user()->role === 'chef_service' ? 'chef' : 'admin'; @endphp
+
 <div class="row g-4">
     @forelse($filieres as $filiere)
     <div class="col-md-6 col-lg-4">
-        <a href="{{ route('admin.etudiants-filiere.classes', $filiere) }}" class="text-decoration-none">
+        <a href="{{ route($prefix.'.etudiants-filiere.classes', $filiere) }}" class="text-decoration-none">
             <div class="card h-100" style="transition:.2s;cursor:pointer;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3 mb-2">

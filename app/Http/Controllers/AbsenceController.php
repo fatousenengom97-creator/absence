@@ -114,18 +114,27 @@ class AbsenceController extends Controller
 
     /* ---- Valider / Modifier une absence (Professeur) ---- */
     public function valider(Request $request, Absence $absence)
-    {
-        $user = auth()->user();
+{
+    $user = auth()->user();
 
-        // SÉCURITÉ : Le professeur ne peut modifier que les absences liées à ses propres cours
-        if ($user->isProfesseur() && $absence->cours->professeur_id !== $user->professeur->id) {
-            abort(403, 'Action non autorisée.');
-        }
-
-        $request->validate(['statut' => 'required|in:present,absent,retard,justifie']);
-        $absence->update(['statut' => $request->statut, 'justification' => $request->justification]);
-        return back()->with('success', 'Statut mis à jour.');
+    if ($user->isProfesseur() && $absence->cours->professeur_id !== $user->professeur->id) {
+        abort(403, 'Action non autorisée.');
     }
+
+    $request->validate([
+        'statut'        => 'required|in:present,absent,retard,justifie',
+        'justification' => 'required_if:statut,justifie|nullable|string|max:500',
+    ], [
+        'justification.required_if' => 'Une justification est obligatoire pour marquer cette absence comme justifiée.',
+    ]);
+
+    $absence->update([
+        'statut'        => $request->statut,
+        'justification' => $request->statut === 'justifie' ? $request->justification : $absence->justification,
+    ]);
+
+    return back()->with('success', 'Statut mis à jour.');
+}
 
     /* ---- Justifier une absence (Étudiant) ---- */
     public function justifier(Request $request, Absence $absence)

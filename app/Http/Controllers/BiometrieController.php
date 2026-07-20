@@ -23,29 +23,64 @@ class BiometrieController extends Controller
     }
 
     /**
-     * Sauvegarder le vecteur facial généré et la photo témoin.
+     * Sauvegarder la photo témoin, extraire le vecteur via FastAPI et l'enregistrer.
      */
     public function sauvegarder(Request $request, Etudiant $etudiant)
     {
         $request->validate([
-            'face_vector' => 'required|string',
-            'photo'       => 'required|string',
+            'photo' => 'required|string',
         ]);
 
-        $imageData = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $request->photo));
-        $filename  = 'biometrie/etudiant_' . $etudiant->id . '_' . time() . '.jpg';
-        Storage::disk('public')->put($filename, $imageData);
+        try {
+            // 1. Appel au serveur Python pour extraire le vecteur facial depuis l'image brute
+            $client = new Client(['timeout' => 12]);
+            $response = $client->post('http://127.0.0.1:8080/api/extraire', [
+                'json' => ['image' => $request->photo]
+            ]);
 
-        DonneesBiometriques::updateOrCreate(
-            ['etudiant_id' => $etudiant->id],
-            [
-                'faceVector'     => $request->face_vector,
-                'cheminPhoto'    => $filename,
-                'dateEnregistre' => now(),
-            ]
-        );
+            $resultatPython = json_decode($response->getBody(), true);
 
-        return response()->json(['success' => true, 'message' => 'Données biométriques enregistrées avec succès.']);
+            // Si Python ne détecte aucun visage ou rencontre un problème
+            if (!isset($resultatPython['success']) || !$resultatPython['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $resultatPython['message'] ?? 'Erreur d\'extraction du visage.'
+                ], 422);
+            }
+
+            // 2. Décoder et stocker physiquement la photo témoin sur le serveur Laravel
+            $imageData = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $request->photo));
+            $filename  = 'biometrie/etudiant_' . $etudiant->id . '_' . time() . '.jpg';
+            Storage::disk('public')->put($filename, $imageData);
+
+            // 3. Insertion ou mise à jour dans la base de données
+            DonneesBiometriques::updateOrCreate(
+                ['etudiant_id' => $etudiant->id],
+                [
+                    'faceVector'     => $resultatPython['face_vector'], // Vecteur généré par Python
+                    'cheminPhoto'    => $filename,
+                    'dateEnregistre' => now(),
+                ]
+            );
+
+            // 4. Forcer l'API Python à recharger son cache mémoire pour inclure ce nouvel étudiant
+            try {
+                $client->post('http://127.0.0.1:8080/api/recharger');
+            } catch (\Exception $e) {
+                // Échec silencieux du rechargement pour ne pas bloquer l'expérience utilisateur
+            }
+
+            return response()->json([
+                'success' => true, 
+                'message' => 'Données biométriques et vecteur enregistrés avec succès.'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de liaison avec le serveur Python : ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

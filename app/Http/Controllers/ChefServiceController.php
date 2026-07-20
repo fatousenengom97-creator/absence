@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cours;
+use App\Models\RapportCours;
 use App\Models\Absence;
 use App\Models\Classe;
 use App\Models\Matiere;
 use App\Models\Professeur;
 use App\Models\Salle;
-use App\Models\EmploiDuTemps; 
+use App\Models\EmploiDuTemps;
 use App\Models\Etudiant;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -18,13 +20,23 @@ class ChefServiceController extends Controller
     /**
      * Affiche le tableau de bord (dashboard) du Chef de Service.
      */
-    public function dashboard()
+ public function dashboard()
     {
+        // 1. Statistiques des cartes du haut
         $totalClasses = Classe::count();
-        $totalProfesseurs = Professeur::count();
-        $totalEDT = EmploiDuTemps::count(); 
+        $totalProfesseurs = \App\Models\User::where('role', 'professeur')->count();
+        $totalEDT = Cours::count();
 
-        return view('chef.dashboard', compact('totalClasses', 'totalProfesseurs', 'totalEDT')); 
+        // 2. Récupération de TOUS les cours avec leurs relations pour la grille du calendrier
+        $cours = Cours::with(['matiere', 'professeur', 'salle', 'classe'])->get();
+
+        // 3. Envoi à la vue
+        return view('chef.dashboard', compact(
+            'totalClasses', 
+            'totalProfesseurs', 
+            'totalEDT', 
+            'cours'
+        ));
     }
 
     /**
@@ -33,40 +45,60 @@ class ChefServiceController extends Controller
     public function emploiDuTemps()
     {
         $classes = Classe::with('filiere')->orderBy('nom')->get();
-        
+
         return view('chef.emploi-du-temps', compact('classes'));
     }
 
     /**
      * Affiche l'emploi du temps spécifique d'une classe.
      */
-    public function edtClasse($classeId)
+    public function edtClasse(Request $request, $classeId)
     {
         $classe = Classe::where('idClasse', $classeId)->firstOrFail();
 
-        // Récupère les créneaux de cette classe via la clé idClasse
+        // Détermine la semaine affichée (par défaut : semaine actuelle)
+        $semaineParam = $request->query('semaine');
+        $debutSemaine = $semaineParam
+            ? Carbon::parse($semaineParam)->startOfWeek()
+            : now()->startOfWeek();
+
+        // Empêche d'afficher une semaine avant la semaine actuelle
+        if ($debutSemaine->lt(now()->startOfWeek())) {
+            $debutSemaine = now()->startOfWeek();
+        }
+
+        $finSemaine = $debutSemaine->copy()->addDays(5); // Lundi -> Samedi
+
+        // Récupère les créneaux de cette classe pour la semaine affichée uniquement
         $creneaux = EmploiDuTemps::where('idClasse', $classeId)
+            ->whereBetween('date', [$debutSemaine->format('Y-m-d'), $finSemaine->format('Y-m-d')])
             ->with(['matiere', 'professeur.user', 'salle'])
             ->get();
 
-        $edt = $creneaux->groupBy('jour');
+        $edt = $creneaux->groupBy(fn($c) => Carbon::parse($c->date)->format('Y-m-d'));
 
         $matieres = Matiere::all();
         $professeurs = Professeur::with('user')->get();
         $salles = Salle::all();
 
         $jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-        $heures = range(8, 19); 
+        $heures = range(8, 19);
+
+        // Empêche d'aller à la semaine précédente si c'est avant la semaine actuelle
+        $semainePassee = $debutSemaine->lte(now()->startOfWeek());
 
         return view('chef.edt-classe', compact(
-            'classe', 
-            'creneaux', 
-            'edt', 
-            'matieres', 
-            'professeurs', 
-            'salles', 
-            'jours', 
-            'heures'
+            'classe',
+            'creneaux',
+            'edt',
+            'matieres',
+            'professeurs',
+            'salles',
+            'jours',
+            'heures',
+            'debutSemaine',
+            'finSemaine',
+            'semainePassee'
         ));
     }
 
@@ -78,25 +110,31 @@ class ChefServiceController extends Controller
         $classe = Classe::where('idClasse', $classeId)->firstOrFail();
 
         $request->validate([
-            'idMatiere' => 'required|exists:matieres,idMatiere',
+            'idMatiere'     => 'required|exists:matieres,idMatiere',
             'professeur_id' => 'required|exists:professeurs,id',
-            'idSalle' => 'required|exists:salles,idSalle',
-            'jour' => 'required|in:Lundi,Mardi,Mercredi,Jeudi,Vendredi,Samedi',
-            'heureDebut' => 'required',
-            'heureFin' => 'required|after:heureDebut',
+            'idSalle'       => 'required|exists:salles,idSalle',
+            'date'          => 'required|date|after_or_equal:' . now()->startOfWeek()->format('Y-m-d'),
+            'heureDebut'    => 'required',
+            'heureFin'      => 'required|after:heureDebut',
+        ], [
+            'date.after_or_equal' => 'Impossible de créer un créneau dans une semaine déjà passée.',
         ]);
 
+        $jourFr = Carbon::parse($request->date)->locale('fr')->dayName;
+        $jourFr = ucfirst($jourFr); // Lundi, Mardi, etc.
+
         EmploiDuTemps::create([
-            'idClasse' => $classe->idClasse,
-            'idMatiere' => $request->idMatiere,
+            'idClasse'      => $classe->idClasse,
+            'idMatiere'     => $request->idMatiere,
             'professeur_id' => $request->professeur_id,
-            'idSalle' => $request->idSalle,
-            'jour' => $request->jour,
-            'heureDebut' => $request->heureDebut,
-            'heureFin' => $request->heureFin,
-            'typeCours' => $request->input('typeCours', 'CM'),
-            'couleur' => $request->input('couleur', '#3B82F6'),
-            'actif' => true,
+            'idSalle'       => $request->idSalle,
+            'date'          => $request->date,
+            'jour'          => $jourFr,
+            'heureDebut'    => $request->heureDebut,
+            'heureFin'      => $request->heureFin,
+            'typeCours'     => $request->input('typeCours', 'CM'),
+            'couleur'       => $request->input('couleur', '#3B82F6'),
+            'actif'         => true,
         ]);
 
         return redirect()->back()->with('success', 'Créneau horaire ajouté avec succès !');
@@ -107,7 +145,6 @@ class ChefServiceController extends Controller
      */
     public function destroyEDT($idEDT)
     {
-        // Recherche par l'identifiant unique personnalisé idEDT
         $creneau = EmploiDuTemps::where('idEDT', $idEDT)->firstOrFail();
         $creneau->delete();
 
@@ -128,8 +165,8 @@ class ChefServiceController extends Controller
             'Saturday'  => 'Samedi',
             'Sunday'    => 'Dimanche',
         ];
-        
-        $nomJourAnglais = Carbon::now()->format('l'); 
+
+        $nomJourAnglais = Carbon::now()->format('l');
         $jourActuel = $joursTraduits[$nomJourAnglais] ?? 'Lundi';
 
         $salles = Salle::all();
@@ -157,13 +194,13 @@ class ChefServiceController extends Controller
 
             $total = $pointages->count();
             $presents = $pointages->where('statut', 'present')->count();
-            $absents  = $pointages->where('statut', 'absent')->count();
+            $absents = $pointages->where('statut', 'absent')->count();
 
             $taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
 
             $classe->total = $total;
             $classe->presents = $presents;
-            $classe->absents  = $absents;
+            $classe->absents = $absents;
             $classe->taux = $taux;
 
             return $classe;
@@ -197,17 +234,54 @@ class ChefServiceController extends Controller
     }
 
     /**
-     * Alerte automatique quand un étudiant dépasse le seuil d'absences autorisé (ex: >= 3).
+     * Alerte automatique quand un étudiant dépasse le seuil d'absences autorisé (ex: >= 5).
      */
-public function alertes()
-{
-    $etudiantsEnAlerte = Etudiant::with(['inscriptionActuelle.classe.filiere', 'user'])
-        ->withCount(['absences' => function ($query) {
-            $query->where('statut', 'absent');
-        }])
-        ->having('absences_count', '>=', 5) // seuil : 5 absences ou plus
-        ->get();
+    public function alertes()
+    {
+        $etudiantsEnAlerte = Etudiant::with(['inscriptionActuelle.classe.filiere', 'user'])
+            ->withCount(['absences' => function ($query) {
+                $query->where('statut', 'absent');
+            }])
+            ->having('absences_count', '>=', 5) // seuil : 5 absences ou plus
+            ->get();
 
-    return view('admin.etudiants_filieres.alertes', compact('etudiantsEnAlerte'));
-}
+        return view('admin.etudiants_filieres.alertes', compact('etudiantsEnAlerte'));
+    }
+
+    /**
+     * Liste des rapports transmis après chaque fin de cours.
+     */
+    public function rapportsCours()
+    {
+        $rapports = RapportCours::with(['cours.matiere', 'cours.classe', 'cours.professeur.user'])
+            ->orderByDesc('created_at')
+            ->paginate(15);
+
+        return view('chef.rapports-cours', compact('rapports'));
+    }
+
+    /**
+     * Génère le PDF du rapport de présence pour un cours donné.
+     */
+    public function rapportCoursPDF(Cours $cours)
+    {
+        $cours->load(['matiere', 'classe', 'salle', 'professeur.user']);
+
+        $absences = Absence::with('etudiant.user')
+            ->where('idCours', $cours->idCours)
+            ->get();
+
+        $pdf = Pdf::loadView('chef.rapport_cours_pdf', compact('cours', 'absences'));
+
+        return $pdf->stream('Rapport_' . str_replace(' ', '_', $cours->matiere->nomMatiere ?? 'Cours') . '_' . now()->format('d-m-Y') . '.pdf');
+    }
+
+    /**
+     * Marque un rapport de cours comme lu par le chef de service.
+     */
+    public function marquerLu(RapportCours $rapport)
+    {
+        $rapport->update(['lu' => true]);
+        return redirect()->back();
+    }
 }

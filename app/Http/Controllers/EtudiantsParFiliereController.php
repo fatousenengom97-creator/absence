@@ -29,10 +29,12 @@ class EtudiantsParFiliereController extends Controller
     }
 
     public function showEtudiants(Filiere $filiere, Classe $classe)
-    {
-        $classe->load(['niveau', 'etudiants.user']);
-        $etudiants = $classe->etudiants()->with('user')->paginate(15);
+{
+    $classe->load(['niveau']);
+    $etudiants = $classe->etudiants()
+        ->with(['user', 'derniereAbsence'])
+        ->paginate(15);
 
-        return view('admin.etudiants_filieres.etudiants', compact('filiere', 'classe', 'etudiants'));
-    }
+    return view('admin.etudiants_filieres.etudiants', compact('filiere', 'classe', 'etudiants'));
+}
 }

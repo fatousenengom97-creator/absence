@@ -6,6 +6,7 @@ use App\Http\Controllers\EtudiantsParFiliereController;
 use App\Http\Controllers\InscriptionController;
 use App\Http\Controllers\DepartementController;
 use App\Http\Controllers\SeanceController;
+use App\Http\Controllers\EmploiDuTempsController; // <-- Ton nouveau contrôleur importé ici
 use App\Http\Controllers\{
     AuthController,
     AdminController,
@@ -101,10 +102,7 @@ Route::middleware(['auth', 'role:professeur'])
     Route::get('/mon-emploi-du-temps', [ProfesseurController::class, 'monEmploiDuTemps'])->name('emploi-du-temps');
     Route::get('/etudiants', [ProfesseurController::class, 'mesEtudiants'])->name('etudiants');
     
-    // Consulter historique, fiches et modifier manuellement une absence en cas d'erreur
     Route::get('/absences', [ProfesseurController::class, 'absencesClasse'])->name('absences');
-
-    // NOUVELLE ROUTE — Modifier le statut d'une absence
     Route::patch('/absence/{absence}/modifier', [ProfesseurController::class, 'modifierAbsence'])->name('absence.modifier');
 
     Route::post('/cours/{cours}/pointage', [ProfesseurController::class, 'declarerPointage'])->name('pointage');
@@ -127,12 +125,23 @@ Route::middleware(['auth', 'role:chef_service'])
     Route::post('/emploi-du-temps/{classe}', [ChefServiceController::class, 'storeEDT'])->name('edt.store');
     Route::delete('/emploi-du-temps/creneau/{idEDT}', [ChefServiceController::class, 'destroyEDT'])->name('edt.destroy');
     
+    // 🆕 NOUVELLES ROUTES : Affichage de l'EDT et insertion sécurisée anti-doublon
+    Route::get('/classes/{idClasse}/emploi-du-temps', [EmploiDuTempsController::class, 'show'])->name('emploi_du_temps.show');
+    Route::post('/emploi-du-temps/store', [EmploiDuTempsController::class, 'store'])->name('emploi_du_temps.store');
+
     Route::get('/salles', [ChefServiceController::class, 'salles'])->name('salles');
     
     Route::get('/rapport', [ChefServiceController::class, 'rapportGlobal'])->name('rapport');
     Route::get('/rapport/pdf', [ChefServiceController::class, 'genererRapportPDF'])->name('rapport.pdf');
     
     Route::get('/etudiants-filiere', [EtudiantsParFiliereController::class, 'index'])->name('etudiants-filiere.index');
+    Route::get('/etudiants-filiere/{filiere}/classes', [EtudiantsParFiliereController::class, 'showClasses'])->name('etudiants-filiere.classes');
+    Route::get('/etudiants-filiere/{filiere}/classes/{classe}/etudiants', [EtudiantsParFiliereController::class, 'showEtudiants'])->name('etudiants-filiere.etudiants');
+
+    // Rapports transmis à chaque fin de cours
+    Route::get('/rapports-cours', [ChefServiceController::class, 'rapportsCours'])->name('rapports-cours.index');
+    Route::get('/rapports-cours/{cours}/pdf', [ChefServiceController::class, 'rapportCoursPDF'])->name('rapports-cours.pdf');
+    Route::patch('/rapports-cours/{rapport}/lu', [ChefServiceController::class, 'marquerLu'])->name('rapports-cours.lu');
 });
 
 

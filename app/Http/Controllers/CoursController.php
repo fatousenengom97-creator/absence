@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\RapportCours;
 use App\Models\Cours;
 use App\Models\Matiere;
 use App\Models\Classe;
@@ -198,9 +198,15 @@ class CoursController extends Controller
     /**
      * Terminer un cours en cours.
      */
-    public function terminer(Cours $cours)
-    {
-        $cours->update(['statut' => 'termine']);
-        return redirect()->route('cours.index')->with('success', 'Cours terminé.');
-    }
+public function terminer(Cours $cours)
+{
+    $cours->update(['statut' => 'termine']);
+
+    RapportCours::create([
+        'idCours' => $cours->idCours,
+        'lu'      => false,
+    ]);
+
+    return redirect()->route('cours.index')->with('success', 'Cours terminé — rapport transmis au chef de service.');
+}
 }

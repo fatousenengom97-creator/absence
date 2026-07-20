@@ -70,11 +70,13 @@ class AdminController extends Controller
 
         match ($user->role) {
             'etudiant'     => (function () use ($user, $request) {
+                // CORRECTION : Ajout d'idClasse à la création de l'étudiant
                 $etudiant = Etudiant::create([
                     'user_id'       => $user->id,
                     'codePar'       => $request->codePar ?? 'ETU-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
                     'dateNaissance' => $request->dateNaissance,
                     'lieuNaissance' => $request->lieuNaissance,
+                    'idClasse'      => $request->idClasse, 
                 ]);
 
                 if ($request->filled('idClasse')) {
@@ -125,10 +127,12 @@ class AdminController extends Controller
         $user->update($data);
 
         if ($user->role === 'etudiant' && $user->etudiant) {
+            // CORRECTION : Mise à jour synchronisée d'idClasse sur la table étudiants
             $user->etudiant->update([
                 'codePar'       => $request->codePar ?? $user->etudiant->codePar,
                 'dateNaissance' => $request->dateNaissance ?? $user->etudiant->dateNaissance,
                 'lieuNaissance' => $request->lieuNaissance ?? $user->etudiant->lieuNaissance,
+                'idClasse'      => $request->idClasse ?? $user->etudiant->idClasse,
             ]);
 
             if ($request->filled('idClasse')) {
@@ -157,36 +161,29 @@ class AdminController extends Controller
         return redirect()->route('admin.users.index')->with('success', 'Utilisateur supprimé.');
     }
 
-    /* ========== LISTE ÉTUDIANTS ========== */
     /* ========== LISTE ÉTUDIANTS (groupés par Filière > Classe) ========== */
     public function indexEtudiants()
     {
-        // IMPORTANT : on charge "inscriptionActuelle.classe.filiere", PAS "etudiant.classe"
-        // (cette dernière relation n'existe pas sur le modèle Etudiant).
         $etudiants = User::where('role', 'etudiant')
             ->with('etudiant.inscriptionActuelle.classe.filiere')
             ->get();
-
-        // On groupe en mémoire (après le ->get()) car le groupement se fait sur des
-        // relations imbriquées (classe.filiere->nomFiliere), ce qui est plus simple
-        // à exprimer avec la collection Laravel qu'avec un groupBy() SQL ici.
 
         $etudiantsParFiliere = $etudiants
             ->groupBy(function ($user) {
                 return $user->etudiant?->inscriptionActuelle?->classe?->filiere?->nomFiliere ?? 'Sans filière';
             })
             ->map(function ($groupeFiliere) {
-                // À l'intérieur de chaque filière, on regroupe par classe
                 return $groupeFiliere->groupBy(function ($user) {
                     return $user->etudiant?->inscriptionActuelle?->classe?->nom ?? 'Sans classe';
                 });
             })
-            ->sortKeys(); // ordre alphabétique des filières
+            ->sortKeys();
 
         $totalEtudiants = $etudiants->count();
 
         return view('admin.users.etudiants', compact('etudiantsParFiliere', 'totalEtudiants'));
     }
+
     /* ========== CLASSES ========== */
     public function indexClasses()
     {

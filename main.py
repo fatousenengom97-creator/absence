@@ -1,148 +1,159 @@
-import io
-import os
-from datetime import datetime
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, LargeBinary
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+import base64
+import json
+import re
 import cv2
 import numpy as np
+import mysql.connector
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-# 1. Configuration Base de données MySQL
-DATABASE_URL = "mysql+pymysql://root:@localhost/gestionabsence"
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+app = FastAPI(title="API de Reconnaissance Faciale - UFR SATIC (OpenCV)")
 
-class Student(Base):
-    __tablename__ = "etudiants"
-    
-    # Alignement précis avec la structure de ta table MySQL existante
-    id = Column(Integer, primary_key=True, index=True) # Clé primaire auto-incrémentée de Laravel
-    user_id = Column(Integer)
-    codePar = Column(String(255))
-    dateNaissance = Column(DateTime, nullable=True)
-    lieuNaissance = Column(String(255), nullable=True)
-    idClasse = Column(Integer)
-    face_photo = Column(LargeBinary) # La colonne LONGBLOB ajoutée manuellement
+# Autoriser les requêtes venant de l'application Laravel (port 8000)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class Attendance(Base):
-    __tablename__ = "presences"
-    id_presence = Column(DateTime, default=datetime.now, primary_key=True)
-    student_id = Column(String(50))
-    status = Column(String(20), default="Present")
+# Configuration de la connexion à la base de données Laravel
+DB_CONFIG = {
+    'host': '127.0.0.1',
+    'user': 'root',
+    'password': '',
+    'database': 'gestionabsence'
+}
 
-app = FastAPI(title="API Gestion des Absences - UFR SATIC (OpenCV Light)")
-
-# Déplacer la création des tables au démarrage pour éviter les boucles infinies de rechargement
-@app.on_event("startup")
-def startup_event():
-    Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# Charger le détecteur de visage par défaut d'OpenCV
+# Chargement du détecteur de visage OpenCV (Haar Cascade)
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-def extract_face(image_bytes):
-    """Détecte un visage, le recadre et le redimensionne en 100x100 pixels gris"""
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img is None:
-        return None
-        
+known_face_vectors = []
+known_face_ids = []
+
+
+def charger_biometrie_bd():
+    """Charge tous les vecteurs faciaux enregistrés en base de données."""
+    global known_face_vectors, known_face_ids
+    known_face_vectors.clear()
+    known_face_ids.clear()
+    try:
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT etudiant_id, faceVector FROM donnees_biomettriques WHERE faceVector IS NOT NULL")
+        lignes = cursor.fetchall()
+        for ligne in lignes:
+            vecteur_liste = json.loads(ligne['faceVector'])
+            vecteur_np = np.array(vecteur_liste, dtype=np.uint8)
+            known_face_vectors.append(vecteur_np)
+            known_face_ids.append(ligne['etudiant_id'])
+        print(f"[{len(known_face_ids)}] visages d'étudiants chargés avec succès depuis la BD.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Erreur lors du chargement de la base de données : {e}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    charger_biometrie_bd()
+
+
+class ImagePayload(BaseModel):
+    image: str  # Chaîne base64 envoyée par Laravel
+
+
+def decoder_image(image_base64):
+    image_str = re.sub('^data:image/.+;base64,', '', image_base64)
+    image_bytes = base64.b64decode(image_str)
+    np_arr = np.frombuffer(image_bytes, np.uint8)
+    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+
+def extraire_visage(img):
+    """Détecte un visage, le recadre et le redimensionne en 100x100 pixels gris."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 3)
-    
+    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+
     if len(faces) == 0:
         return None
-        
-    # Prendre le premier visage détecté
+
     (x, y, w, h) = faces[0]
     face_roi = gray[y:y+h, x:x+w]
-    # Redimensionner pour avoir exactement la même taille pour la comparaison
     face_resized = cv2.resize(face_roi, (100, 100))
-    return face_resized.tobytes()
+    return face_resized
 
-@app.post("/register")
-async def register_student(code_par: str, user_id: int, id_classe: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    # On vérifie si l'étudiant existe déjà via son codePar (matricule)
-    db_student = db.query(Student).filter(Student.codePar == code_par).first()
-    if db_student and db_student.face_photo is not None:
-        raise HTTPException(status_code=400, detail="Cet étudiant possède déjà une photo de référence.")
 
+@app.post("/api/extraire")
+async def extraire_vecteur(payload: ImagePayload):
+    """Extrait le vecteur facial d'une photo, pour l'enregistrement d'un étudiant."""
     try:
-        file_bytes = await file.read()
-        face_data = extract_face(file_bytes)
-        
-        if face_data is None:
-            raise HTTPException(status_code=400, detail="Aucun visage détecté sur la photo.")
-            
-        if db_student:
-            # Si l'étudiant existe déjà (créé par Laravel), on met à jour son visage
-            db_student.face_photo = face_data
-            message = f"Le visage de l'étudiant au code {code_par} a été ajouté avec succès."
-        else:
-            # Sinon, on crée un nouvel enregistrement complet
-            new_student = Student(codePar=code_par, user_id=user_id, idClasse=id_classe, face_photo=face_data)
-            db.add(new_student)
-            message = f"L'étudiant avec le code {code_par} a été créé et enregistré avec succès."
-            
-        db.commit()
-        return {"status": "success", "message": message}
-        
+        img = decoder_image(payload.image)
+        if img is None:
+            return {"success": False, "message": "Format d'image invalide"}
+
+        visage = extraire_visage(img)
+        if visage is None:
+            return {"success": False, "message": "Aucun visage détecté sur la photo. Réessayez."}
+
+        vecteur_liste = visage.flatten().tolist()
+        return {
+            "success": True,
+            "face_vector": json.dumps(vecteur_liste)
+        }
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Erreur d'enregistrement : {str(e)}")
+        return {"success": False, "message": f"Erreur Python : {str(e)}"}
 
-@app.post("/scan")
-async def scan_attendance(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    # Récupérer uniquement les étudiants qui ont un visage enregistré
-    students = db.query(Student).filter(Student.face_photo.isnot(None)).all()
-    if not students:
-        raise HTTPException(status_code=400, detail="Aucun visage de référence n'est enregistré dans la base de données.")
 
+@app.post("/api/identifier")
+async def identifier_visage(payload: ImagePayload):
+    """Compare une photo captée en direct avec tous les visages connus, pour le pointage."""
+    global known_face_vectors, known_face_ids
     try:
-        file_bytes = await file.read()
-        current_face = extract_face(file_bytes)
-        
-        if current_face is None:
-            return {"status": "unknown", "message": "Aucun visage détecté sur le scan."}
-            
-        current_array = np.frombuffer(current_face, dtype=np.uint8)
+        img = decoder_image(payload.image)
+        if img is None:
+            return {"status": "error", "message": "Format d'image invalide"}
 
-        best_match_code = None
-        min_diff = 15.0 # Seuil d'erreur de ressemblance (plus bas = plus strict)
+        visage = extraire_visage(img)
+        if visage is None:
+            return {"status": "no_match", "message": "Aucun visage détecté sur la caméra"}
 
-        for s in students:
-            known_array = np.frombuffer(s.face_photo, dtype=np.uint8)
-            
-            # Calcul de la différence globale absolue entre les deux visages
-            err = np.sum((current_array.astype("float") - known_array.astype("float")) ** 2)
-            err /= float(current_array.shape[0])
-            err = err / 100 # Normalisation simple
-            
-            if err < min_diff:
-                min_diff = err
-                best_match_code = s.codePar
+        if not known_face_vectors:
+            return {"status": "inconnu", "message": "Aucun étudiant enregistré en base de données"}
 
-        if best_match_code:
-            attendance_record = Attendance(student_id=best_match_code, status="Present")
-            db.add(attendance_record)
-            db.commit()
-            
+        visage_actuel = visage.flatten().astype("float")
+
+        meilleur_score = float('inf')
+        meilleur_id = None
+
+        for idx, vecteur_connu in enumerate(known_face_vectors):
+            err = np.sum((visage_actuel - vecteur_connu.astype("float")) ** 2)
+            err /= float(visage_actuel.shape[0])
+
+            if err < meilleur_score:
+                meilleur_score = err
+                meilleur_id = known_face_ids[idx]
+
+        seuil = 2000.0  # À ajuster selon les tests réels (plus bas = plus strict)
+
+        if meilleur_score <= seuil:
+            confiance = max(0.0, 1.0 - (meilleur_score / seuil))
             return {
-                "status": "recognized",
-                "student_code": best_match_code,
-                "message": f"Présence validée pour le code étudiant {best_match_code} !"
+                "status": "success",
+                "etudiant_id": int(meilleur_id),
+                "confiance": confiance
             }
-        
-        return {"status": "unknown", "message": "Étudiant non reconnu."}
+
+        return {"status": "inconnu", "message": "Visage non reconnu dans le système"}
+
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Erreur d'analyse : {str(e)}")
+        return {"status": "error", "message": f"Erreur interne du serveur Python : {str(e)}"}
+
+
+@app.post("/api/recharger")
+async def recharger():
+    """Force le rechargement de la mémoire des visages connus."""
+    charger_biometrie_bd()
+    return {"success": True, "message": "Mémoire biométrique synchronisée avec la base de données."}
