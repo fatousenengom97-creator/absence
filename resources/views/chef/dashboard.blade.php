@@ -107,8 +107,20 @@
                                                         <i class="bi bi-geo-alt me-1"></i>{{ $c->salle->nom ?? 'N/A' }}
                                                     </div>
 
-                                                    <div class="mt-1 text-end">
+                                                    <div class="mt-1 d-flex justify-content-between align-items-center">
                                                         <span class="badge bg-light text-dark fw-bold text-uppercase" style="font-size: 8px;">{{ $c->typeCours }}</span>
+                                                        <div class="d-flex gap-2">
+                                                            <a href="{{ route('chef.edt.classe', $c->idClasse) }}" class="text-white" style="font-size: 11px;" title="Modifier">
+                                                                <i class="bi bi-pencil-fill"></i>
+                                                            </a>
+                                                            <form method="POST" action="{{ route('chef.edt.destroy', $c->idEDT) }}"
+                                                                  onsubmit="return confirm('Supprimer ce créneau ?')" style="display:inline;margin:0;">
+                                                                @csrf @method('DELETE')
+                                                                <button type="submit" class="btn btn-link text-white p-0" style="font-size: 11px; text-decoration:none; border:none; background:none;" title="Supprimer">
+                                                                    <i class="bi bi-trash-fill"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             @endif

@@ -24,6 +24,7 @@ class BiometrieController extends Controller
 
     /**
      * Sauvegarder la photo témoin, extraire le vecteur via FastAPI et l'enregistrer.
+     * Bloque l'enregistrement si ce visage correspond déjà à un autre étudiant.
      */
     public function sauvegarder(Request $request, Etudiant $etudiant)
     {
@@ -32,8 +33,32 @@ class BiometrieController extends Controller
         ]);
 
         try {
-            // 1. Appel au serveur Python pour extraire le vecteur facial depuis l'image brute
             $client = new Client(['timeout' => 12]);
+
+            // 1. Vérifie d'abord si ce visage correspond déjà à un AUTRE étudiant
+            $responseIdentification = $client->post('http://127.0.0.1:8080/api/identifier', [
+                'json' => ['image' => $request->photo]
+            ]);
+
+            $resultatIdentification = json_decode($responseIdentification->getBody(), true);
+
+            if (
+                isset($resultatIdentification['status']) &&
+                $resultatIdentification['status'] === 'success' &&
+                (int) $resultatIdentification['etudiant_id'] !== (int) $etudiant->id
+            ) {
+                $autreEtudiant = Etudiant::with('user')->find($resultatIdentification['etudiant_id']);
+                $nomAutre = $autreEtudiant?->user
+                    ? $autreEtudiant->user->prenom . ' ' . $autreEtudiant->user->nom
+                    : 'un autre étudiant';
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "Ce visage est déjà enregistré pour {$nomAutre}. Impossible d'associer le même visage à deux étudiants."
+                ], 422);
+            }
+
+            // 2. Appel au serveur Python pour extraire le vecteur facial depuis l'image brute
             $response = $client->post('http://127.0.0.1:8080/api/extraire', [
                 'json' => ['image' => $request->photo]
             ]);
@@ -48,12 +73,12 @@ class BiometrieController extends Controller
                 ], 422);
             }
 
-            // 2. Décoder et stocker physiquement la photo témoin sur le serveur Laravel
+            // 3. Décoder et stocker physiquement la photo témoin sur le serveur Laravel
             $imageData = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $request->photo));
             $filename  = 'biometrie/etudiant_' . $etudiant->id . '_' . time() . '.jpg';
             Storage::disk('public')->put($filename, $imageData);
 
-            // 3. Insertion ou mise à jour dans la base de données
+            // 4. Insertion ou mise à jour dans la base de données
             DonneesBiometriques::updateOrCreate(
                 ['etudiant_id' => $etudiant->id],
                 [
@@ -63,7 +88,7 @@ class BiometrieController extends Controller
                 ]
             );
 
-            // 4. Forcer l'API Python à recharger son cache mémoire pour inclure ce nouvel étudiant
+            // 5. Forcer l'API Python à recharger son cache mémoire pour inclure ce nouvel étudiant
             try {
                 $client->post('http://127.0.0.1:8080/api/recharger');
             } catch (\Exception $e) {

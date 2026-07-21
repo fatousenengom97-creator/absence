@@ -20,18 +20,18 @@ class ChefServiceController extends Controller
     /**
      * Affiche le tableau de bord (dashboard) du Chef de Service.
      */
-public function dashboard()
-{
-    $totalClasses = Classe::count();
-    $totalProfesseurs = Professeur::count();
-    $totalEDT = EmploiDuTemps::count();
+    public function dashboard()
+    {
+        $totalClasses = Classe::count();
+        $totalProfesseurs = Professeur::count();
+        $totalEDT = EmploiDuTemps::count();
 
-    $cours = EmploiDuTemps::with(['matiere', 'classe', 'salle', 'professeur.user'])
-        ->where('actif', true)
-        ->get();
+        $cours = EmploiDuTemps::with(['matiere', 'classe', 'salle', 'professeur.user'])
+            ->where('actif', true)
+            ->get();
 
-    return view('chef.dashboard', compact('totalClasses', 'totalProfesseurs', 'totalEDT', 'cours'));
-}
+        return view('chef.dashboard', compact('totalClasses', 'totalProfesseurs', 'totalEDT', 'cours'));
+    }
 
     /**
      * Affiche l'écran d'accueil de gestion des emplois du temps (Liste des classes).
@@ -97,6 +97,50 @@ public function dashboard()
     }
 
     /**
+     * Vérifie les conflits d'horaire (professeur, salle, classe) sur un créneau donné.
+     * Retourne un tableau de messages d'erreur, vide si aucun conflit.
+     */
+    private function detecterConflitsEDT($date, $heureDebut, $heureFin, $professeurId, $idSalle, $idClasse, $ignorerIdEDT = null)
+    {
+        $erreurs = [];
+
+        $requeteBase = function () use ($date, $heureDebut, $heureFin, $ignorerIdEDT) {
+            $q = EmploiDuTemps::where('date', $date)
+                ->where('heureDebut', '<', $heureFin)
+                ->where('heureFin', '>', $heureDebut);
+
+            if ($ignorerIdEDT) {
+                $q->where('idEDT', '!=', $ignorerIdEDT);
+            }
+
+            return $q;
+        };
+
+        // Conflit professeur
+        $conflitProf = $requeteBase()->where('professeur_id', $professeurId)->with('classe')->first();
+        if ($conflitProf) {
+            $erreurs[] = 'Ce professeur a déjà un cours sur ce créneau (' . ($conflitProf->classe->nom ?? '—') . ', '
+                . substr($conflitProf->heureDebut, 0, 5) . '–' . substr($conflitProf->heureFin, 0, 5) . ').';
+        }
+
+        // Conflit salle
+        $conflitSalle = $requeteBase()->where('idSalle', $idSalle)->with('classe')->first();
+        if ($conflitSalle) {
+            $erreurs[] = 'Cette salle est déjà occupée sur ce créneau (' . ($conflitSalle->classe->nom ?? '—') . ', '
+                . substr($conflitSalle->heureDebut, 0, 5) . '–' . substr($conflitSalle->heureFin, 0, 5) . ').';
+        }
+
+        // Conflit classe (empêche aussi qu'une classe/ses étudiants aient deux cours en même temps)
+        $conflitClasse = $requeteBase()->where('idClasse', $idClasse)->with('matiere')->first();
+        if ($conflitClasse) {
+            $erreurs[] = 'Cette classe a déjà un cours sur ce créneau (' . ($conflitClasse->matiere->nomMatiere ?? '—') . ', '
+                . substr($conflitClasse->heureDebut, 0, 5) . '–' . substr($conflitClasse->heureFin, 0, 5) . ').';
+        }
+
+        return $erreurs;
+    }
+
+    /**
      * Enregistre un nouveau créneau de cours dans l'emploi du temps d'une classe.
      */
     public function storeEDT(Request $request, $classeId)
@@ -113,6 +157,19 @@ public function dashboard()
         ], [
             'date.after_or_equal' => 'Impossible de créer un créneau dans une semaine déjà passée.',
         ]);
+
+        $conflits = $this->detecterConflitsEDT(
+            $request->date,
+            $request->heureDebut,
+            $request->heureFin,
+            $request->professeur_id,
+            $request->idSalle,
+            $classe->idClasse
+        );
+
+        if (!empty($conflits)) {
+            return back()->withInput()->withErrors($conflits);
+        }
 
         $jourFr = Carbon::parse($request->date)->locale('fr')->dayName;
         $jourFr = ucfirst($jourFr); // Lundi, Mardi, etc.
@@ -144,6 +201,10 @@ public function dashboard()
 
         return redirect()->back()->with('success', 'Créneau supprimé avec succès !');
     }
+
+    /**
+     * Met à jour un créneau d'emploi du temps existant.
+     */
     public function updateEDT(Request $request, $idEDT)
     {
         $creneau = EmploiDuTemps::where('idEDT', $idEDT)->firstOrFail();
@@ -158,6 +219,20 @@ public function dashboard()
         ], [
             'date.after_or_equal' => 'Impossible de déplacer ce créneau dans une semaine déjà passée.',
         ]);
+
+        $conflits = $this->detecterConflitsEDT(
+            $request->date,
+            $request->heureDebut,
+            $request->heureFin,
+            $request->professeur_id,
+            $request->idSalle,
+            $creneau->idClasse,
+            $creneau->idEDT // on ignore le créneau lui-même dans la recherche de conflit
+        );
+
+        if (!empty($conflits)) {
+            return back()->withInput()->withErrors($conflits);
+        }
 
         $jourFr = ucfirst(Carbon::parse($request->date)->locale('fr')->dayName);
 
@@ -208,38 +283,38 @@ public function dashboard()
     /**
      * Calcule et génère le rapport global d'absentéisme par classe.
      */
-   public function rapportGlobal(Request $request)
-{
-    $classesRaw = Classe::with(['filiere', 'niveau'])->get();
+    public function rapportGlobal(Request $request)
+    {
+        $classesRaw = Classe::with(['filiere', 'niveau'])->get();
 
-    $classes = $classesRaw->map(function ($classe) {
-        $pointages = Absence::whereHas('cours', function ($query) use ($classe) {
-            $query->where('idClasse', $classe->idClasse);
-        })->get();
+        $classes = $classesRaw->map(function ($classe) {
+            $pointages = Absence::whereHas('cours', function ($query) use ($classe) {
+                $query->where('idClasse', $classe->idClasse);
+            })->get();
 
-        $total = $pointages->count();
-        $presents = $pointages->where('statut', 'present')->count();
-        $absents  = $pointages->where('statut', 'absent')->count();
+            $total = $pointages->count();
+            $presents = $pointages->where('statut', 'present')->count();
+            $absents  = $pointages->where('statut', 'absent')->count();
 
-        $taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
+            $taux = $total > 0 ? round(($absents / $total) * 100, 1) : 0;
 
-        $classe->total = $total;
-        $classe->presents = $presents;
-        $classe->absents  = $absents;
-        $classe->taux = $taux;
+            $classe->total = $total;
+            $classe->presents = $presents;
+            $classe->absents  = $absents;
+            $classe->taux = $taux;
 
-        return $classe;
-    });
+            return $classe;
+        });
 
-    // Étudiants absents aujourd'hui, toutes classes confondues
-    $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
-        ->whereDate('date', today())
-        ->where('statut', 'absent')
-        ->orderByDesc('date')
-        ->get();
+        // Étudiants absents aujourd'hui, toutes classes confondues
+        $absentsAujourdhui = Absence::with(['etudiant.user', 'cours.matiere', 'cours.classe'])
+            ->whereDate('date', today())
+            ->where('statut', 'absent')
+            ->orderByDesc('date')
+            ->get();
 
-    return view('chef.rapport', compact('classes', 'absentsAujourdhui'));
-}
+        return view('chef.rapport', compact('classes', 'absentsAujourdhui'));
+    }
 
     /**
      * Génère l'export PDF du rapport global pour le Chef de Service.
